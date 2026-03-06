@@ -12,7 +12,6 @@ test-utils = []
 
 [dependencies]
 rand.workspace = true
-itybity.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 hybrid-array = { workspace = true, features = ["serde"] }
