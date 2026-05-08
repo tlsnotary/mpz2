@@ -26,7 +26,7 @@ itybity.workspace = true
 opaque-debug.workspace = true
 bcs.workspace = true
 rand_core = { workspace = true }
-bytemuck = { workspace = true, features = ["derive"] }
+zerocopy = { workspace = true, features = ["derive"] }
 hybrid-array.workspace = true
 rayon = { workspace = true, optional = true }
 cfg-if.workspace = true

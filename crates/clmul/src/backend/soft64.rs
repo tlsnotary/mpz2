@@ -4,13 +4,15 @@
 //! <https://bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/hash/ghash_ctmul64.c;hb=4b6046412>
 //!
 //! Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
-use bytemuck::{Pod, Zeroable};
 use core::{num::Wrapping, ops::BitXor};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub type Clmul = U64x2;
 
 /// 2 x `u64` values
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Pod, Zeroable)]
+#[derive(
+    Copy, Clone, Debug, Default, Eq, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout,
+)]
 pub struct U64x2(u64, u64);
 
 impl From<U64x2> for [u8; 16] {

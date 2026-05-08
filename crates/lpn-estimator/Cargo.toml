@@ -7,7 +7,6 @@ edition = "2024"
 opaque-debug = "0.3"
 bcs = "0.1"
 rand_core = "0.9"
-bytemuck = { version = "1.21", features = ["derive"] }
 gmp-mpfr-sys = { version = "1.6", default-features = false, features = [
     "use-system-libs",
 ] }

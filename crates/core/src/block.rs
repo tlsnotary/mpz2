@@ -1,20 +1,29 @@
 //! A block of 128 bits and its operations.
 
-use bytemuck::{Pod, Zeroable};
 use clmul::Clmul;
 use core::ops::{BitAnd, BitAndAssign, BitXor, BitXorAssign};
 use hybrid_array::{Array, typenum::consts::U16};
 use itybity::{BitIterable, BitLength, FromBitIterator, GetBit, Lsb0, Msb0};
 use rand::{CryptoRng, Rng, RngExt, distr::StandardUniform, prelude::Distribution};
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::{Debug, Display},
-    slice::from_raw_parts,
-};
+use std::fmt::{Debug, Display};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// A block of 128 bits
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize, Pod, Zeroable)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    FromBytes,
+    IntoBytes,
+    Immutable,
+    KnownLayout,
+)]
 pub struct Block([u8; 16]);
 
 impl Block {
@@ -146,33 +155,9 @@ impl Block {
     /// This function compute ``sigma( x = x0 || x1 ) = x1 || (x0 xor x1)``.
     #[inline(always)]
     pub fn sigma(a: Self) -> Self {
-        let mut x: [u64; 2] = bytemuck::cast(a);
+        let mut x: [u64; 2] = zerocopy::transmute!(a);
         x[0] ^= x[1];
-        bytemuck::cast([x[1], x[0]])
-    }
-
-    /// Converts a slice of blocks to a slice of bytes.
-    pub fn as_flattened_bytes(slice: &[Self]) -> &[u8] {
-        // This is equivalent to `<[[u8; 16]]>::as_flattened`
-
-        // SAFETY: `slice.len() * Block::LEN` cannot overflow because `slice` is
-        // already in the address space.
-        let len = unsafe { slice.len().unchecked_mul(Self::LEN) };
-        // SAFETY: `[u8]` is layout-identical to `[u8; 16]` of which block is a
-        // newtype.
-        unsafe { from_raw_parts(slice.as_ptr().cast(), len) }
-    }
-
-    /// Converts a slice of block arrays to a slice of bytes.
-    pub fn array_as_flattened_bytes<const N: usize>(slice: &[[Self; N]]) -> &[u8] {
-        // This is equivalent to `<[[u8; 16 * N]]>::as_flattened`
-
-        // SAFETY: `slice.len() * N * Block::LEN` cannot overflow because
-        // `slice` is already in the address space.
-        let len = unsafe { slice.len().unchecked_mul(N * Self::LEN) };
-        // SAFETY: `[u8]` is layout-identical to `[u8; 16]` of which block is a
-        // newtype.
-        unsafe { from_raw_parts(slice.as_ptr().cast(), len) }
+        zerocopy::transmute!([x[1], x[0]])
     }
 
     /// Converts a block to a [`Array<u8,
@@ -192,13 +177,15 @@ impl Block {
     /// U16>`]from the [`hybrid-array`](https://docs.rs/hybrid-array/latest/hybrid_array/) crate.
     #[allow(dead_code)]
     pub(crate) fn as_array_slice(slice: &[Self]) -> &[Array<u8, U16>] {
-        unsafe { std::mem::transmute(slice) }
+        let bytes: &[[u8; 16]] = zerocopy::transmute_ref!(slice);
+        Array::cast_slice_from_core(bytes)
     }
 
     /// Converts a mutable slice of blocks to a mutable slice of
     ///  from the [`hybrid-array`](https://docs.rs/hybrid-array/latest/hybrid_array/) crate.
     pub(crate) fn as_array_mut_slice(slice: &mut [Self]) -> &mut [Array<u8, U16>] {
-        unsafe { std::mem::transmute(slice) }
+        let bytes: &mut [[u8; 16]] = zerocopy::transmute_mut!(slice);
+        Array::cast_slice_from_core_mut(bytes)
     }
 }
 
@@ -269,7 +256,7 @@ impl From<[u8; 16]> for Block {
 
 impl<'a> From<&'a [u8; 16]> for &'a Block {
     fn from(bytes: &'a [u8; 16]) -> Self {
-        bytemuck::cast_ref(bytes)
+        zerocopy::transmute_ref!(bytes)
     }
 }
 

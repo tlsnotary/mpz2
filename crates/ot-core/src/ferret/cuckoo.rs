@@ -156,7 +156,7 @@ fn compute_table_length(t: usize) -> usize {
 // Hash the value into index using AES.
 #[inline(always)]
 fn hash_to_index(hash: &AesEncryptor, range: usize, value: u32) -> usize {
-    let mut blk: Block = bytemuck::cast::<_, Block>(value as u128);
+    let mut blk = Block::from((value as u128).to_le_bytes());
     blk = hash.encrypt_block(blk);
     let res = u128::from_le_bytes(blk.to_bytes());
     (res as usize) % range

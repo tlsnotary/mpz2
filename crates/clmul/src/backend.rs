@@ -24,8 +24,8 @@ impl soft::Clmul {
             ((u as u128) << 64) | (l as u128)
         }
 
-        let x: u128 = bytemuck::cast(x);
-        let y: u128 = bytemuck::cast(y);
+        let x: u128 = zerocopy::transmute!(x);
+        let y: u128 = zerocopy::transmute!(y);
 
         let (x3, x2) = sep(y);
         let (x1, x0) = sep(x);
@@ -38,7 +38,7 @@ impl soft::Clmul {
         let (g1, g0) = sep(join(x3, d) << 7);
         let h1 = x3 ^ e1 ^ f1 ^ g1;
         let h0 = d ^ e0 ^ f0 ^ g0;
-        bytemuck::cast(join(x1 ^ h1, x0 ^ h0))
+        zerocopy::transmute!(join(x1 ^ h1, x0 ^ h0))
     }
 }
 

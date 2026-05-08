@@ -10,7 +10,9 @@ use itybity::{BitLength, FromBitIterator, IntoBitIterator, IntoBits};
 use mpz_common::future::{MaybeDone, Sender, new_output};
 use mpz_core::{Block, prg::Prg};
 
-use rand::{Rng as _, RngExt, SeedableRng};
+use rand::{Rng as _, SeedableRng};
+use rand_core::RngCore;
+use zerocopy::FromBytes;
 
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -164,16 +166,16 @@ impl Receiver<state::Extension> {
             .zip(ts.chunks_exact(ts.len() / NROWS))
         {
             let new_blocks: &[Block] =
-                bytemuck::try_cast_slice(new_row).expect("row length is a multiple of Block size");
+                <[Block]>::ref_from_bytes(new_row).expect("row length is a multiple of Block size");
             existing_row.extend_from_slice(new_blocks);
         }
 
         matrix_transpose::transpose_bits(&mut ts, NROWS).expect("matrix is rectangular");
 
         let t_blocks: &[Block] =
-            bytemuck::try_cast_slice(&ts).expect("ts length is a multiple of Block size");
+            <[Block]>::ref_from_bytes(&ts).expect("ts length is a multiple of Block size");
 
-        self.state.unchecked_ts_trans.extend(t_blocks.iter());
+        self.state.unchecked_ts_trans.extend_from_slice(t_blocks);
 
         self.state.unchecked_choices.extend(choices);
 

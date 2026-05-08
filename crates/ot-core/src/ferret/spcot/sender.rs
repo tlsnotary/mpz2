@@ -137,8 +137,8 @@ impl SPCOTSender {
         let masks_len = masks.len();
         self.transcript
             .update(&masks.as_raw_slice().as_bytes()[..masks_len.div_ceil(8)]);
-        self.transcript.update(Block::array_as_flattened_bytes(&ms));
-        self.transcript.update(Block::as_flattened_bytes(&sums));
+        self.transcript.update(ms.as_bytes());
+        self.transcript.update(sums.as_bytes());
         self.counter += len_sum as u128;
 
         Ok((&self.vs[start..], ms, sums))

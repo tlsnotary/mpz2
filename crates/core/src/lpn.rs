@@ -44,14 +44,15 @@ impl<const D: usize> LpnEncoder<D> {
     #[inline]
     fn compute_four_rows_indep(&self, y: &mut [Block], x: &[Block], pos: usize, prp: &Prp) {
         let mut cnt = 0u64;
-        let mut index: [Block; D] = std::array::from_fn(|_| {
+        let mut index: [[u32; 4]; D] = std::array::from_fn(|_| {
             let i = cnt;
             cnt += 1;
-            Block::from(bytemuck::cast::<_, [u8; 16]>([pos as u64, i]))
+            zerocopy::transmute!([pos as u64, i])
         });
 
-        prp.permute_many_blocks(&mut index);
-        let index = bytemuck::cast_slice_mut::<_, u32>(&mut index);
+        let blocks: &mut [Block; D] = zerocopy::transmute_mut!(&mut index);
+        prp.permute_many_blocks(blocks);
+        let index: &mut [u32] = index.as_flattened_mut();
 
         for (i, y) in y.iter_mut().enumerate().take(4) {
             for ind in index[i * D..(i + 1) * D].iter_mut() {
@@ -68,10 +69,11 @@ impl<const D: usize> LpnEncoder<D> {
         // (D + 4 - 1) / 4
         let block_size = D.div_ceil(4);
         let mut index = (0..block_size)
-            .map(|i| Block::from(bytemuck::cast::<_, [u8; 16]>([pos as u64, i as u64])))
-            .collect::<Vec<Block>>();
-        prp.permute_block_inplace(&mut index);
-        let index = bytemuck::cast_slice_mut::<_, u32>(&mut index);
+            .map(|i| -> [u32; 4] { zerocopy::transmute!([pos as u64, i as u64]) })
+            .collect::<Vec<[u32; 4]>>();
+        let blocks: &mut [Block] = zerocopy::transmute_mut!(index.as_mut_slice());
+        prp.permute_block_inplace(blocks);
+        let index: &mut [u32] = index.as_flattened_mut();
 
         for ind in index.iter_mut().take(D) {
             *ind &= self.mask;
@@ -184,14 +186,15 @@ mod tests {
         #[allow(dead_code)]
         fn compute_four_rows_non_indep(&self, y: &mut [Block], x: &[Block], pos: usize, prp: &Prp) {
             let mut cnt = 0u64;
-            let mut index = [0; D].map(|_| {
+            let mut index: [[u32; 4]; D] = [[0u32; 4]; D].map(|_| {
                 let i: u64 = cnt;
                 cnt += 1;
-                Block::from(bytemuck::cast::<_, [u8; 16]>([pos as u64, i]))
+                zerocopy::transmute!([pos as u64, i])
             });
 
-            prp.permute_many_blocks(&mut index);
-            let index: &mut [u32] = bytemuck::cast_slice_mut::<_, u32>(&mut index);
+            let blocks: &mut [Block; D] = zerocopy::transmute_mut!(&mut index);
+            prp.permute_many_blocks(blocks);
+            let index: &mut [u32] = index.as_flattened_mut();
 
             for (i, y) in y[pos..].iter_mut().enumerate().take(4) {
                 for ind in index[i * D..(i + 1) * D].iter_mut() {
