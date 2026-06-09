@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use itybity::ToBits;
-use mpz_core::{Block, lpn::LpnType};
+use mpz_core::Block;
 use mpz_ot_core::{
     chou_orlandi,
     ferret::{self, FerretConfig},
@@ -86,23 +86,15 @@ fn kos(c: &mut Criterion) {
 
 fn ferret(c: &mut Criterion) {
     let mut group = c.benchmark_group("ferret");
-    for ty in [LpnType::Uniform, LpnType::Regular] {
-        let ty_str = match ty {
-            LpnType::Uniform => "uniform",
-            LpnType::Regular => "regular",
-        };
+    for n in [262144, 1_000_000] {
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::new("regular", n), &n, |b, &n| {
+            let mut rng = ChaCha12Rng::seed_from_u64(0);
+            let delta = Block::random(&mut rng);
 
-        for n in [262144, 1_000_000] {
-            group.throughput(Throughput::Elements(n as u64));
-            group.bench_with_input(BenchmarkId::new(ty_str, n), &n, |b, &n| {
-                let mut rng = ChaCha12Rng::seed_from_u64(0);
-                let delta = Block::random(&mut rng);
+            let config = FerretConfig::builder().build().unwrap();
 
-                let mut builder = FerretConfig::builder();
-                builder.lpn_type(ty);
-                let config = builder.build().unwrap();
-
-                b.iter(|| {
+            b.iter(|| {
                     let cot = IdealRCOT::new(rng.random(), delta);
                     let mut sender = ferret::Sender::new(rng.random(), config.clone(), cot.clone());
                     let mut receiver = ferret::Receiver::new(rng.random(), config.clone(), cot);
@@ -129,7 +121,6 @@ fn ferret(c: &mut Criterion) {
                     black_box((sender, receiver));
                 })
             });
-        }
     }
 }
 

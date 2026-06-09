@@ -114,7 +114,7 @@ where
 
     /// Starts extension.
     pub fn start_extend(&mut self) -> Result<ReceiverExtend> {
-        let State::Extend(Extend { mut public_prg }) = self.state.take() else {
+        let State::Extend(Extend { public_prg }) = self.state.take() else {
             return Err(ErrorRepr::State("not in extend state".to_string()).into());
         };
 
@@ -140,11 +140,10 @@ where
         let missing = self.alloc.saturating_sub(self.available());
         let params = self.config.select_params(self.macs.len(), missing);
 
-        let lpn_type = self.config.lpn_type();
-        let err = sample_error_indices(&mut self.prg, lpn_type, params.n, params.t);
+        let err = sample_error_indices(&mut self.prg, params.n, params.t);
 
         let (mpcot, spcot_lengths, spcot_idxs) =
-            MPCOTReceiver::new(public_prg.random(), lpn_type).start_extend(&err, params.n)?;
+            MPCOTReceiver::new().start_extend(&err, params.n)?;
 
         let spcot_count: usize = spcot_lengths.iter().sum();
         let masks = &self.choices[self.choices.len() - spcot_count..];

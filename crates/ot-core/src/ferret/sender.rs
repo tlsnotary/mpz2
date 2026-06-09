@@ -115,7 +115,7 @@ where
 
     /// Starts extension.
     pub fn start_extend(&mut self) -> Result<()> {
-        let State::Extend(Extend { mut public_prg }) = self.state.take() else {
+        let State::Extend(Extend { public_prg }) = self.state.take() else {
             return Err(ErrorRepr::State("not in extend state".to_string()).into());
         };
 
@@ -135,8 +135,7 @@ where
         let missing = self.alloc.saturating_sub(self.available());
         let params = self.config.select_params(self.keys.len(), missing);
 
-        let (mpcot, spcot_lengths) = MPCOTSender::new(public_prg.random(), self.config.lpn_type())
-            .start_extend(params.t, params.n)?;
+        let (mpcot, spcot_lengths) = MPCOTSender::new().start_extend(params.t, params.n)?;
 
         self.state = State::Extending(Extending {
             public_prg,
