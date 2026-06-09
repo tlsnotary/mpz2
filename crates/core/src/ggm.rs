@@ -41,7 +41,7 @@ impl<'a> GgmTree<'a> {
 
         let mut buf = vec![Block::ZERO; (1 << depth) - 1];
 
-        let tkprp = TwoKeyPrp::new([Block::ZERO, Block::ONE]);
+        let tkprp = TwoKeyPrp::new([Block::ZERO.to_bytes(), Block::ONE.to_bytes()]);
 
         buf[0] = seed;
         for n in 0..depth - 1 {
@@ -50,11 +50,17 @@ impl<'a> GgmTree<'a> {
 
             let (parents, children) = buf[parents.start..children.end].split_at_mut(width(n));
 
-            tkprp.expand(parents, children);
+            tkprp.expand(
+                zerocopy::transmute_ref!(&*parents),
+                zerocopy::transmute_mut!(children),
+            );
         }
 
         // Expand the last layer.
-        tkprp.expand(&buf[layer(depth - 1)], leaves);
+        tkprp.expand(
+            zerocopy::transmute_ref!(&buf[layer(depth - 1)]),
+            zerocopy::transmute_mut!(leaves),
+        );
 
         Self { depth, buf, leaves }
     }
@@ -83,7 +89,7 @@ impl<'a> GgmTree<'a> {
 
         let mut buf = vec![Block::ZERO; (1 << depth) - 1];
 
-        let tkprp = TwoKeyPrp::new([Block::ZERO, Block::ONE]);
+        let tkprp = TwoKeyPrp::new([Block::ZERO.to_bytes(), Block::ONE.to_bytes()]);
 
         // The path length is equal to the depth of the tree.
         let idx = idx as u32;
@@ -115,13 +121,19 @@ impl<'a> GgmTree<'a> {
 
                 recover(inputs, *sum, offset, select);
 
-                tkprp.expand(inputs, outputs);
+                tkprp.expand(
+                    zerocopy::transmute_ref!(&*inputs),
+                    zerocopy::transmute_mut!(outputs),
+                );
             } else if n == depth - 1 {
                 let inputs = &mut buf[layer(n)];
 
                 recover(inputs, *sum, offset, select);
 
-                tkprp.expand(inputs, leaves);
+                tkprp.expand(
+                    zerocopy::transmute_ref!(&*inputs),
+                    zerocopy::transmute_mut!(leaves),
+                );
             } else if n == depth {
                 recover(leaves, *sum, offset, select);
 

@@ -50,7 +50,7 @@ impl<const D: usize> LpnEncoder<D> {
             zerocopy::transmute!([pos as u64, i])
         });
 
-        let blocks: &mut [Block; D] = zerocopy::transmute_mut!(&mut index);
+        let blocks: &mut [[u8; 16]; D] = zerocopy::transmute_mut!(&mut index);
         prp.permute_many_blocks(blocks);
         let index: &mut [u32] = index.as_flattened_mut();
 
@@ -71,7 +71,7 @@ impl<const D: usize> LpnEncoder<D> {
         let mut index = (0..block_size)
             .map(|i| -> [u32; 4] { zerocopy::transmute!([pos as u64, i as u64]) })
             .collect::<Vec<[u32; 4]>>();
-        let blocks: &mut [Block] = zerocopy::transmute_mut!(index.as_mut_slice());
+        let blocks: &mut [[u8; 16]] = zerocopy::transmute_mut!(index.as_mut_slice());
         prp.permute_block_inplace(blocks);
         let index: &mut [u32] = index.as_flattened_mut();
 
@@ -96,7 +96,7 @@ impl<const D: usize> LpnEncoder<D> {
     pub fn compute(&self, seed: Block, y: &mut [Block], x: &[Block]) {
         assert_eq!(x.len() as u32, self.k);
         assert!(x.len() >= D);
-        let prp = Prp::new(seed);
+        let prp = Prp::new(seed.to_bytes());
         let size = y.len() - (y.len() % 4);
 
         cfg_if::cfg_if! {
@@ -174,7 +174,7 @@ mod tests {
                 zerocopy::transmute!([pos as u64, i])
             });
 
-            let blocks: &mut [Block; D] = zerocopy::transmute_mut!(&mut index);
+            let blocks: &mut [[u8; 16]; D] = zerocopy::transmute_mut!(&mut index);
             prp.permute_many_blocks(blocks);
             let index: &mut [u32] = index.as_flattened_mut();
 
@@ -192,7 +192,7 @@ mod tests {
         pub(crate) fn compute_naive(&self, seed: Block, y: &mut [Block], x: &[Block]) {
             assert_eq!(x.len() as u32, self.k);
             assert!(x.len() >= D);
-            let prp = Prp::new(seed);
+            let prp = Prp::new(seed.to_bytes());
             let batch_size = y.len() / 4;
 
             for i in 0..batch_size {

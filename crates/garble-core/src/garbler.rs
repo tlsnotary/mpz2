@@ -34,13 +34,18 @@ pub(crate) fn and_gate(
 
     let p_a = x_0.lsb();
     let p_b = y_0.lsb();
-    let j = Block::new((gid as u128).to_be_bytes());
-    let k = Block::new(((gid + 1) as u128).to_be_bytes());
+    let j = (gid as u128).to_be_bytes();
+    let k = ((gid + 1) as u128).to_be_bytes();
 
-    let mut h = [*x_0, *y_0, x_1, y_1];
+    let mut h = [
+        x_0.to_bytes(),
+        y_0.to_bytes(),
+        x_1.to_bytes(),
+        y_1.to_bytes(),
+    ];
     cipher.tccr_many(&[j, k, j, k], &mut h);
 
-    let [hx_0, hy_0, hx_1, hy_1] = h;
+    let [hx_0, hy_0, hx_1, hy_1] = h.map(Block::new);
 
     // Garbled row of garbler half-gate
     let t_g = hx_0 ^ hx_1 ^ (Block::SELECT_MASK[p_b as usize] & delta);
