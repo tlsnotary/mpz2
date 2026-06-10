@@ -220,6 +220,14 @@ cfg_select! {
         mod x86;
         use x86 as backend;
     }
+    target_arch = "x86_64" => {
+        // Compiled without PCLMULQDQ: detect it at runtime, falling back to
+        // the software backend.
+        mod autodetect;
+        mod soft;
+        mod x86;
+        use autodetect as backend;
+    }
     all(target_arch = "wasm32", target_feature = "simd128") => {
         mod wasm;
         use wasm as backend;

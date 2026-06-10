@@ -28,7 +28,7 @@ mod tests {
 
         builder.param_selector(|_, _| LpnParameters {
             n: 9600,
-            k: 1220,
+            k: 1024,
             t: 600,
         });
 

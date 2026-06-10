@@ -69,16 +69,10 @@ where
     type Error = Error;
 
     fn wants_flush(&self) -> bool {
-        self.core.wants_init() || self.core.wants_extend()
+        self.core.wants_extend()
     }
 
     async fn flush(&mut self, ctx: &mut Context) -> Result<(), Self::Error> {
-        if self.core.wants_init() {
-            let msg = self.core.initialize()?;
-            ctx.io_mut().send(msg).await?;
-        }
-
-        // TODO: Run this concurrently with the above.
         if self.core.wants_bootstrap() {
             self.core.alloc_bootstrap()?;
             self.core

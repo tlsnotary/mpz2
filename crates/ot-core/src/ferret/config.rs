@@ -11,7 +11,7 @@ pub(crate) const CSP: usize = 128;
 #[cfg(test)]
 pub(crate) const TEST_PARAMS: LpnParameters = LpnParameters {
     n: 9600,
-    k: 1220,
+    k: 1024,
     t: 600,
 };
 

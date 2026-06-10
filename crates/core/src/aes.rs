@@ -33,6 +33,22 @@ fn as_array_slice(blocks: &mut [[u8; 16]]) -> &mut [Array<u8, U16>] {
     Array::cast_slice_from_core_mut(blocks)
 }
 
+/// Linear orthomorphism `σ(x_hi || x_lo) = (x_hi ⊕ x_lo) || x_hi`.
+///
+/// See <https://eprint.iacr.org/2019/074> (Section 7.3), instantiation (ii).
+///
+/// The halves are interpreted in little-endian order so the mapping is
+/// platform independent.
+#[inline(always)]
+fn sigma(block: [u8; 16]) -> [u8; 16] {
+    const HI: u128 = ((1u128 << 64) - 1) << 64;
+
+    let x = u128::from_le_bytes(block);
+    // Swapping the halves moves `x_hi` into the low half, and XORing the
+    // masked value folds `x_hi` into the high half.
+    (x.rotate_left(64) ^ (x & HI)).to_le_bytes()
+}
+
 /// Fixed-key AES cipher
 pub struct FixedKeyAes {
     aes: Aes128Enc,
@@ -43,6 +59,54 @@ impl FixedKeyAes {
     pub fn new(key: [u8; 16]) -> Self {
         Self {
             aes: Aes128Enc::new(&key.into()),
+        }
+    }
+
+    /// Circular correlation-robust hash function instantiated using fixed-key
+    /// AES.
+    ///
+    /// See <https://eprint.iacr.org/2019/074> (Section 7.3)
+    ///
+    /// `π(σ(x)) ⊕ σ(x)`, where `π` is instantiated using fixed-key AES and `σ`
+    /// is a linear orthomorphism.
+    ///
+    /// The result is written back into `block`.
+    #[inline]
+    pub fn ccr(&self, block: &mut [u8; 16]) {
+        *block = sigma(*block);
+        let mut h = *block;
+        self.aes.encrypt_block(as_array(&mut h));
+        *block = xor(*block, h);
+    }
+
+    /// Circular correlation-robust hash function instantiated using fixed-key
+    /// AES, writing the hash of each block in `src` to `dst`.
+    ///
+    /// See [`FixedKeyAes::ccr`].
+    ///
+    /// Hashes are computed in batches large enough to saturate the parallel
+    /// width of the AES backend.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `src` and `dst` have different lengths.
+    #[inline]
+    pub fn ccr_blocks_to(&self, src: &[[u8; 16]], dst: &mut [[u8; 16]]) {
+        assert_eq!(src.len(), dst.len(), "src and dst must have equal length");
+
+        const N: usize = 64;
+
+        let mut buf = [[0u8; 16]; N];
+        for (src, dst) in src.chunks(N).zip(dst.chunks_mut(N)) {
+            let m = src.len();
+            for (s, d) in src.iter().zip(dst.iter_mut()) {
+                *d = sigma(*s);
+            }
+            buf[..m].copy_from_slice(&dst[..m]);
+            self.aes.encrypt_blocks(as_array_slice(&mut buf[..m]));
+            for (d, h) in dst.iter_mut().zip(&buf) {
+                *d = xor(*d, *h);
+            }
         }
     }
 
@@ -158,6 +222,24 @@ impl AesEncryptor {
                 key.encrypt_blocks(blks);
             });
     }
+}
+
+#[test]
+fn ccr_blocks_to_test() {
+    // Long enough to cover both a full batch and a remainder.
+    let blocks: Vec<[u8; 16]> = (0u8..67).map(|i| [i; 16]).collect();
+    let expected: Vec<[u8; 16]> = blocks
+        .iter()
+        .map(|block| {
+            let mut block = *block;
+            FIXED_KEY_AES.ccr(&mut block);
+            block
+        })
+        .collect();
+
+    let mut hashes = vec![[0u8; 16]; blocks.len()];
+    FIXED_KEY_AES.ccr_blocks_to(&blocks, &mut hashes);
+    assert_eq!(hashes, expected);
 }
 
 #[test]

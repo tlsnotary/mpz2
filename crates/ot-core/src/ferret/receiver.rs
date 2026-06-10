@@ -3,6 +3,7 @@ use std::{collections::VecDeque, sync::Arc};
 use rand::{RngExt, SeedableRng};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
+use mpz_cointoss_core::{CointossError, Sender as CointossSender, sender_state as cointoss_state};
 use mpz_common::future::{MaybeDone, Sender as OutputSender, new_output};
 use mpz_core::{
     Block,
@@ -10,13 +11,16 @@ use mpz_core::{
     prg::Prg,
 };
 
+use mpz_fields::gf2_128::Gf2_128;
+
 use crate::{
     TransferId,
     ferret::{
-        FerretConfig, Init, ReceiverCheck, ReceiverExtend, SenderCheck, SenderExtend,
+        FerretConfig, ReceiverCheck, ReceiverExtend, SenderCheck, SenderExtend,
         config::CSP,
-        mpcot::{MPCOTReceiver, MPCOTReceiverError, receiver_state as mpcot_state},
+        mpcot::{self, MPCOTError},
         spcot::{SPCOTReceiver, SPCOTReceiverError},
+        split_off_blocks,
     },
     rcot::{RCOTReceiver, RCOTReceiverOutput},
 };
@@ -39,7 +43,13 @@ pub struct Receiver<COT> {
     transfer_id: TransferId,
     prg: Prg,
     config: FerretConfig,
-    macs: Vec<Block>,
+    /// COT MACs, stored as field elements for the SPCOT consistency check.
+    /// Converted to blocks only when correlations leave through the RCOT
+    /// interface.
+    macs: Vec<Gf2_128>,
+    /// Number of in-progress correlations at the tail of the buffer, not yet
+    /// finalized by the current extension.
+    pending: usize,
     choices: Vec<bool>,
     state: State,
     spcot: SPCOTReceiver,
@@ -60,7 +70,8 @@ where
             config,
             macs: Vec::new(),
             choices: Vec::new(),
-            state: State::Init,
+            pending: 0,
+            state: State::Extend,
             spcot: SPCOTReceiver::new(),
         }
     }
@@ -68,11 +79,6 @@ where
     /// Returns a lock on the inner COT sender.
     pub fn acquire_cot(&self) -> OwnedMutexGuard<COT> {
         Mutex::try_lock_owned(self.cot.clone()).unwrap()
-    }
-
-    /// Returns `true` if the receiver wants to initialize.
-    pub fn wants_init(&self) -> bool {
-        matches!(self.state, State::Init)
     }
 
     /// Returns `true` if the receiver wants to bootstrap.
@@ -83,21 +89,6 @@ where
     /// Returns `true` if the receiver wants to extend.
     pub fn wants_extend(&self) -> bool {
         self.available() < self.alloc
-    }
-
-    /// Initializes the receiver.
-    pub fn initialize(&mut self) -> Result<Init> {
-        let State::Init = self.state.take() else {
-            return Err(ErrorRepr::State("not in initialize state".to_string()).into());
-        };
-
-        let seed = self.prg.random();
-
-        self.state = State::Extend(Extend {
-            public_prg: Prg::from_seed(seed),
-        });
-
-        Ok(Init { seed })
     }
 
     /// Allocates COTs for bootstrapping.
@@ -114,7 +105,7 @@ where
 
     /// Starts extension.
     pub fn start_extend(&mut self) -> Result<ReceiverExtend> {
-        let State::Extend(Extend { public_prg }) = self.state.take() else {
+        let State::Extend = self.state.take() else {
             return Err(ErrorRepr::State("not in extend state".to_string()).into());
         };
 
@@ -133,7 +124,7 @@ where
                 .try_recv_rcot(missing)
                 .map_err(|e| ErrorRepr::Bootstrap(Box::new(e)))?;
 
-            self.macs.extend_from_slice(&macs);
+            self.macs.extend(macs.iter().map(|&mac| Gf2_128::from(mac)));
             self.choices.extend_from_slice(&choices);
         }
 
@@ -142,8 +133,7 @@ where
 
         let err = sample_error_indices(&mut self.prg, params.n, params.t);
 
-        let (mpcot, spcot_lengths, spcot_idxs) =
-            MPCOTReceiver::new().start_extend(&err, params.n)?;
+        let (spcot_lengths, spcot_idxs) = mpcot::spcot_queries(&err, params.n)?;
 
         let spcot_count: usize = spcot_lengths.iter().sum();
         let masks = &self.choices[self.choices.len() - spcot_count..];
@@ -152,17 +142,23 @@ where
         // Drop used COT choices.
         self.choices.truncate(self.choices.len() - spcot_count);
 
+        // Commit to our share of the LPN seed coin-toss. The sender
+        // contributes its share before we decommit, so neither party can
+        // bias the seed towards a weak LPN code.
+        let (cointoss, lpn_seed_commitment) = CointossSender::new(vec![self.prg.random()]).send();
+
         self.state = State::Extending(Extending {
-            public_prg,
             params,
             err,
-            mpcot,
-            spcot_count,
             spcot_lengths,
             spcot_idxs,
+            cointoss,
         });
 
-        Ok(ReceiverExtend { derandomize })
+        Ok(ReceiverExtend {
+            derandomize,
+            lpn_seed_commitment,
+        })
     }
 
     /// Performs extension.
@@ -171,47 +167,72 @@ where
     ///
     /// * `msg` - The sender's extend message.
     pub fn extend(&mut self, msg: SenderExtend) -> Result<ReceiverCheck> {
-        let SenderExtend { ms, sums } = msg;
+        let SenderExtend { cs, lpn_seed_share } = msg;
 
         let State::Extending(Extending {
-            public_prg,
             params,
-            err: e,
-            mpcot,
-            spcot_count,
+            err,
             spcot_lengths,
             spcot_idxs,
+            cointoss,
         }) = self.state.take()
         else {
             return Err(ErrorRepr::State("not in extending state".to_string()).into());
         };
 
-        let macs = &self.macs[self.macs.len() - spcot_count..];
-        let ws = self
+        let (lpn_seeds, cointoss) = cointoss.receive(lpn_seed_share)?;
+        let lpn_seed = lpn_seeds[0];
+        let lpn_seed_decommitment = cointoss.finalize();
+
+        let spcot_count: usize = spcot_lengths.iter().sum();
+        let cost = spcot_count + CSP + params.k;
+        if self.macs.len() < cost {
+            return Err(ErrorRepr::InsufficientCOTs {
+                expected: cost,
+                actual: self.macs.len(),
+            }
+            .into());
+        }
+
+        // Pop the COT MACs consumed by this extension off the tail: the
+        // SPCOT MACs, the consistency check MACs and choices, and the LPN
+        // input. This frees the tail of the MACs buffer so the SPCOT vectors
+        // can be expanded directly into their final place.
+        let spcot_macs = self.macs.split_off(self.macs.len() - spcot_count);
+        let check_macs = self.macs.split_off(self.macs.len() - CSP);
+        let check_masks = self.choices.split_off(self.choices.len() - CSP);
+        let lpn_macs = self.macs.split_off(self.macs.len() - params.k);
+
+        // For regular indices, the MPCOT output is the concatenation of the
+        // SPCOT vectors (Step 5 in Figure 7), which the SPCOT writes
+        // directly into the tail of the MACs buffer.
+        let start = self.macs.len();
+        self.macs.resize(start + params.n, Gf2_128::ZERO);
+        self.pending = params.n;
+
+        self.spcot.extend(
+            &spcot_lengths,
+            &spcot_idxs,
+            &spcot_macs,
+            &cs,
+            &mut self.macs[start..],
+        )?;
+
+        let derandomize = self
             .spcot
-            .extend(&spcot_lengths, &spcot_idxs, macs, &ms, &sums)?;
-
-        // Drop used COTs.
-        self.macs.truncate(self.macs.len() - spcot_count);
-
-        let r = mpcot.extend(ws)?;
-
-        let macs = &self.macs[self.macs.len() - CSP..];
-        let masks = &self.choices[self.choices.len() - CSP..];
-        let derandomize = self.spcot.start_check(macs, masks)?;
-
-        // Drop used COTs.
-        self.macs.truncate(self.macs.len() - CSP);
-        self.choices.truncate(self.choices.len() - CSP);
+            .start_check(&check_macs, &check_masks, &self.macs[start..])?;
 
         self.state = State::Finish(Finish {
-            public_prg,
             params,
-            err: e,
-            r,
+            err,
+            lpn_macs,
+            lpn_seed,
         });
 
-        Ok(ReceiverCheck { derandomize })
+        Ok(ReceiverCheck {
+            derandomize,
+            lpn_seed_decommitment,
+        })
     }
 
     /// Finishes extension.
@@ -223,10 +244,10 @@ where
         let SenderCheck { hashed_v } = msg;
 
         let State::Finish(Finish {
-            mut public_prg,
             params,
             err,
-            r,
+            lpn_macs,
+            lpn_seed,
         }) = self.state.take()
         else {
             return Err(ErrorRepr::State("not in finish state".to_string()).into());
@@ -235,33 +256,46 @@ where
         self.spcot.check(hashed_v)?;
 
         let encoder = LpnEncoder::<10>::new(params.k as u32);
-        let lpn_seed = public_prg.random();
+        let lpn_seed = lpn_seed.to_bytes();
 
-        // Compute z = A * w + r.
-        let w = &self.macs[self.macs.len() - params.k..];
-        let mut z = r;
-        encoder.compute(lpn_seed, &mut z, w);
-
-        self.macs.truncate(self.macs.len() - params.k);
-
-        // Compute x = A * u + e.
-        let u: Vec<_> = self.choices[self.choices.len() - params.k..]
-            .iter()
-            .map(|x| if *x { Block::ONE } else { Block::ZERO })
-            .collect();
-        let mut x = vec![Block::ZERO; params.n];
-        for &idx in &err {
-            x[idx] = Block::ONE;
+        // Pack the LPN choice bits and the error bits.
+        let choices = &self.choices[self.choices.len() - params.k..];
+        let mut u = vec![0u8; params.k.div_ceil(8)];
+        for (byte, bits) in u.iter_mut().zip(choices.chunks(8)) {
+            for (i, &bit) in bits.iter().enumerate() {
+                *byte |= (bit as u8) << i;
+            }
         }
 
-        encoder.compute(lpn_seed, &mut x, &u);
+        let mut x = vec![0u8; params.n.div_ceil(8)];
+        for &idx in &err {
+            x[idx / 8] |= 1 << (idx % 8);
+        }
+
+        // Compute z = A * w + r and x = A * u + e in one pass, the former
+        // in-place over the SPCOT vectors at the tail of the MACs buffer,
+        // which then directly hold the extended correlations.
+        let start = self.macs.len() - params.n;
+        let z = &mut self.macs[start..];
+        encoder.compute_with_bits(
+            lpn_seed,
+            zerocopy::transmute_mut!(z),
+            &mut x,
+            zerocopy::transmute_ref!(lpn_macs.as_slice()),
+            &u,
+        );
+        self.pending = 0;
 
         self.choices.truncate(self.choices.len() - params.k);
 
-        let x: Vec<_> = x.iter().map(|x| x.lsb()).collect();
-
-        self.macs.extend_from_slice(&z);
-        self.choices.extend_from_slice(&x);
+        self.choices.reserve(params.n);
+        let mut remaining = params.n;
+        for &byte in &x {
+            for i in 0..remaining.min(8) {
+                self.choices.push((byte >> i) & 1 == 1);
+            }
+            remaining -= remaining.min(8);
+        }
 
         let missing = self.alloc.saturating_sub(self.available());
         if missing == 0 {
@@ -270,7 +304,7 @@ where
             self.process_queue();
         }
 
-        self.state = State::Extend(Extend { public_prg });
+        self.state = State::Extend;
 
         Ok(())
     }
@@ -283,7 +317,7 @@ where
             }
 
             let id = self.transfer_id.next();
-            let macs = self.macs.split_off(self.macs.len() - next.count);
+            let macs = split_off_blocks(&mut self.macs, next.count);
             let choices = self.choices.split_off(self.choices.len() - next.count);
 
             next.sender.send(RCOTReceiverOutput {
@@ -308,10 +342,11 @@ where
     }
 
     fn available(&self) -> usize {
+        let len = self.macs.len() - self.pending;
         if self.config.reserve_bootstrap() {
-            self.macs.len().saturating_sub(self.config.bootstrap_cost())
+            len.saturating_sub(self.config.bootstrap_cost())
         } else {
-            self.macs.len()
+            len
         }
     }
 
@@ -325,7 +360,7 @@ where
         }
 
         let choices = self.choices.split_off(self.choices.len() - count);
-        let macs = self.macs.split_off(self.macs.len() - count);
+        let macs = split_off_blocks(&mut self.macs, count);
 
         Ok(RCOTReceiverOutput {
             id: self.transfer_id.next(),
@@ -352,8 +387,7 @@ where
 }
 
 enum State {
-    Init,
-    Extend(Extend),
+    Extend,
     Extending(Extending),
     Finish(Finish),
     Error,
@@ -367,25 +401,19 @@ impl State {
     }
 }
 
-struct Extend {
-    public_prg: Prg,
-}
-
 struct Extending {
-    public_prg: Prg,
     params: LpnParameters,
     err: Vec<usize>,
-    mpcot: MPCOTReceiver<mpcot_state::Extension>,
-    spcot_count: usize,
     spcot_lengths: Vec<usize>,
     spcot_idxs: Vec<usize>,
+    cointoss: CointossSender<cointoss_state::Committed>,
 }
 
 struct Finish {
-    public_prg: Prg,
     params: LpnParameters,
     err: Vec<usize>,
-    r: Vec<Block>,
+    lpn_macs: Vec<Gf2_128>,
+    lpn_seed: Block,
 }
 
 /// Ferret receiver error.
@@ -403,19 +431,20 @@ impl ReceiverError {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("ferret receiver error: {0}")]
 enum ErrorRepr {
-    #[error("invalid state: {0}")]
+    #[error("ferret receiver error: invalid state: {0}")]
     State(String),
-    #[error("bootstrap COT mutex is still locked")]
+    #[error("ferret receiver error: bootstrap COT mutex is still locked")]
     MutexLocked,
-    #[error("bootstrap COT error: {0}")]
+    #[error("ferret receiver error: bootstrap COT error: {0}")]
     Bootstrap(Box<dyn std::error::Error + Send + Sync + 'static>),
-    #[error("SPCOT receiver error: {0}")]
+    #[error(transparent)]
     Spcot(SPCOTReceiverError),
-    #[error("MPCOT receiver error: {0}")]
-    Mpcot(MPCOTReceiverError),
-    #[error("insufficient COTs: expected {expected}, actual {actual}")]
+    #[error(transparent)]
+    Mpcot(MPCOTError),
+    #[error("ferret receiver error: LPN seed coin-toss error: {0}")]
+    Cointoss(CointossError),
+    #[error("ferret receiver error: insufficient COTs: expected {expected}, actual {actual}")]
     InsufficientCOTs { expected: usize, actual: usize },
 }
 
@@ -431,8 +460,14 @@ impl From<SPCOTReceiverError> for ReceiverError {
     }
 }
 
-impl From<MPCOTReceiverError> for ReceiverError {
-    fn from(err: MPCOTReceiverError) -> Self {
+impl From<MPCOTError> for ReceiverError {
+    fn from(err: MPCOTError) -> Self {
         Self(ErrorRepr::Mpcot(err))
+    }
+}
+
+impl From<CointossError> for ReceiverError {
+    fn from(err: CointossError) -> Self {
+        Self(ErrorRepr::Cointoss(err))
     }
 }

@@ -7,17 +7,11 @@ edition = "2024"
 opaque-debug = "0.3"
 bcs = "0.1"
 rand_core = "0.9"
-gmp-mpfr-sys = { version = "1.6", default-features = false, features = [
-    "use-system-libs",
-] }
+gmp-mpfr-sys = { version = "1.6", default-features = false }
 rug = { version = "1.27", default-features = false, features = ["float"] }
 generic-array = "1.2"
 cfg-if = "1.0"
 rayon = "1.10"
-syn = "2"
-quote = "1"
-proc-macro2 = "1"
-prettyplease = "0.2"
 
 [dev-dependencies]
 divan = "0.1"
@@ -29,10 +23,6 @@ path = "src/bin/exact.rs"
 [[bin]]
 name = "regular"
 path = "src/bin/regular.rs"
-
-[[bin]]
-name = "estimator"
-path = "src/bin/estimator.rs"
 
 [[bench]]
 name = "throughput"

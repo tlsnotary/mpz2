@@ -1,32 +1,45 @@
-//! An implementation of the [`Ferret`](https://eprint.iacr.org/2020/924.pdf) protocol.
+//! An implementation of the [`Ferret`](https://eprint.iacr.org/2020/924.pdf) protocol,
+//! using the [`Half-Tree`](https://eprint.iacr.org/2022/1431) correlated GGM
+//! optimization.
+//!
+//! The [emp-toolkit](https://github.com/emp-toolkit/emp-ot) implementation was
+//! used as a reference, in particular for the correlated GGM tree construction
+//! and its composition with the consistency check.
 
 mod config;
-pub(crate) mod mpcot;
+mod mpcot;
 mod receiver;
 mod sender;
-pub(crate) mod spcot;
+mod spcot;
 
 pub use config::{FerretConfig, FerretConfigBuilder, FerretConfigBuilderError, REGULAR_PARAMS};
 pub use receiver::{Receiver, ReceiverError};
 pub use sender::{Sender, SenderError};
 
 use blake3::Hash;
+use mpz_cointoss_core::msgs as cointoss_msgs;
 use mpz_core::Block;
+use mpz_fields::gf2_128::Gf2_128;
 use serde::{Deserialize, Serialize};
 
 use crate::Derandomize;
 
-/// Initialize message sent from receiver to sender.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Init {
-    seed: Block,
+/// Splits the last `count` correlations off the buffer, converting them to
+/// blocks for the RCOT interface.
+fn split_off_blocks(buffer: &mut Vec<Gf2_128>, count: usize) -> Vec<Block> {
+    let start = buffer.len() - count;
+    let blocks = buffer[start..].iter().map(|&x| Block::from(x)).collect();
+    buffer.truncate(start);
+
+    blocks
 }
 
 /// Extend message sent from sender to receiver.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SenderExtend {
-    ms: Vec<[Block; 2]>,
-    sums: Vec<Block>,
+    cs: Vec<Block>,
+    /// The sender's contribution to the LPN seed coin-toss.
+    lpn_seed_share: cointoss_msgs::ReceiverPayload,
 }
 
 /// Check message sent from sender to receiver.
@@ -36,15 +49,26 @@ pub struct SenderCheck {
 }
 
 /// Extend message sent from receiver to sender.
+///
+/// The LPN seed for each extension is agreed with a coin-toss piggybacked on
+/// the extension messages, so that neither party can bias the seed towards a
+/// weak LPN code. The receiver plays the coin-toss sender: it commits here,
+/// and decommits in [`ReceiverCheck`] after the sender has contributed its
+/// share.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReceiverExtend {
     derandomize: Derandomize,
+    /// Commitment to the receiver's contribution to the LPN seed coin-toss.
+    lpn_seed_commitment: cointoss_msgs::SenderCommitment,
 }
 
 /// Check message sent from receiver to sender.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReceiverCheck {
     derandomize: Derandomize,
+    /// Decommitment to the receiver's contribution to the LPN seed
+    /// coin-toss.
+    lpn_seed_decommitment: cointoss_msgs::SenderPayload,
 }
 
 #[cfg(test)]
@@ -75,15 +99,6 @@ mod tests {
 
         let mut sender = Sender::new(rng.random(), config.clone(), cot.clone());
         let mut receiver = Receiver::new(rng.random(), config, cot);
-
-        assert!(sender.wants_init());
-        assert!(receiver.wants_init());
-
-        let init = receiver.initialize().unwrap();
-        sender.initialize(init).unwrap();
-
-        assert!(!sender.wants_init());
-        assert!(!receiver.wants_init());
 
         assert!(sender.wants_bootstrap());
         assert!(receiver.wants_bootstrap());

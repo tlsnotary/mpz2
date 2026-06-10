@@ -23,11 +23,18 @@ fn criterion_benchmark(c: &mut Criterion) {
         let mut group = c.benchmark_group("ferret");
         group.sample_size(10);
         group.measurement_time(std::time::Duration::from_secs(10));
-        group.throughput(Throughput::Elements(OT_COUNT as u64));
 
         println!("Recording for Ferret sender...");
         let recorded = block_on(body::record_for_sender_st(0, OT_COUNT));
         println!("Recorded {} bytes", recorded.bytes.len());
+
+        // Throughput is over the correlations actually produced, not OT_COUNT:
+        // extension rounds up to whole LPN iterations.
+        println!(
+            "Requested {OT_COUNT} COTs, produced {} (whole-iteration rounding)",
+            recorded.actual_count
+        );
+        group.throughput(Throughput::Elements(recorded.actual_count as u64));
 
         // Verify determinism.
         let recorded_2 = block_on(body::record_for_sender_st(0, OT_COUNT));
@@ -53,7 +60,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         let mut group_mt = c.benchmark_group("ferret");
         group_mt.sample_size(10);
         group_mt.measurement_time(std::time::Duration::from_secs(10));
-        group_mt.throughput(Throughput::Elements(OT_COUNT as u64));
 
         println!("Recording for MT Ferret sender...");
         let recorded_mt = block_on(body::record_for_sender_mt(0, OT_COUNT));
@@ -63,6 +69,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             recorded_mt.data.channels.len(),
             total_bytes
         );
+
+        // Throughput is over the correlations actually produced, not OT_COUNT:
+        // extension rounds up to whole LPN iterations.
+        group_mt.throughput(Throughput::Elements(recorded_mt.actual_count as u64));
 
         // Verify determinism.
         let recorded_mt_2 = block_on(body::record_for_sender_mt(0, OT_COUNT));

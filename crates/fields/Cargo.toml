@@ -24,6 +24,9 @@ thiserror.workspace = true
 zerocopy = { workspace = true, features = ["derive"] }
 rayon = { workspace = true, optional = true }
 
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+cpufeatures.workspace = true
+
 [features]
 # When enabled, `Field::inner_product` automatically parallelises across
 # cores when the input is large enough to benefit (i.e. when the

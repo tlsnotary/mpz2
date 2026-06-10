@@ -11,12 +11,14 @@ name = "mpz_ot_core"
 
 [features]
 default = []
-rayon = ["dep:rayon", "mpz-core/rayon", "itybity/rayon", "blake3/rayon"]
+rayon = ["dep:rayon", "mpz-core/rayon", "mpz-fields/rayon", "itybity/rayon", "blake3/rayon"]
 test-utils = []
 
 [dependencies]
 mpz-core.workspace = true
 mpz-common = { workspace = true, features = ["future"] }
+mpz-cointoss-core.workspace = true
+mpz-fields.workspace = true
 clmul.workspace = true
 matrix-transpose.workspace = true
 

@@ -42,6 +42,8 @@ pub struct RecordedSender {
     pub cot_seed: Block,
     /// Seed for the Ferret sender.
     pub sender_seed: Block,
+    /// Correlations actually produced (OT_COUNT rounded up to whole iterations).
+    pub actual_count: usize,
 }
 
 /// Recorded data needed for deterministic MT replay.
@@ -54,6 +56,8 @@ pub struct RecordedSenderMt {
     pub cot_seed: Block,
     /// Seed for the Ferret sender.
     pub sender_seed: Block,
+    /// Correlations actually produced (OT_COUNT rounded up to whole iterations).
+    pub actual_count: usize,
 }
 
 // ============================================================================
@@ -71,7 +75,7 @@ pub async fn run_protocol_record_receiver_st(
     sender_seed: Block,
     receiver_seed: Block,
     ot_count: usize,
-) {
+) -> usize {
     let (cot_send, cot_recv) = ideal_rcot(cot_seed, delta);
 
     let mut sender = Sender::new(config.clone(), sender_seed, cot_send);
@@ -91,6 +95,11 @@ pub async fn run_protocol_record_receiver_st(
             let _ = output.await.unwrap();
         }
     );
+
+    // Ferret extends in whole LPN iterations, so it produces more than the
+    // requested OT_COUNT. The surplus stays buffered after the request is
+    // fulfilled, so the realized count is OT_COUNT plus what remains available.
+    ot_count + sender.available()
 }
 
 /// Records receiver->sender messages for ST sender replay.
@@ -105,7 +114,7 @@ pub async fn record_for_sender_st(seed: u64, ot_count: usize) -> RecordedSender 
     let (mut ctx_sender, mut ctx_receiver, recorded) =
         recording_st_context_with_limit(1024 * 1024, max_frame_length());
 
-    run_protocol_record_receiver_st(
+    let actual_count = run_protocol_record_receiver_st(
         &mut ctx_sender,
         &mut ctx_receiver,
         bench_config(),
@@ -122,6 +131,7 @@ pub async fn record_for_sender_st(seed: u64, ot_count: usize) -> RecordedSender 
         delta,
         cot_seed,
         sender_seed,
+        actual_count,
     }
 }
 
@@ -156,7 +166,7 @@ pub async fn run_protocol_record_receiver_mt(
     sender_seed: Block,
     receiver_seed: Block,
     ot_count: usize,
-) {
+) -> usize {
     let (cot_send, cot_recv) = ideal_rcot(cot_seed, delta);
 
     let mut sender = Sender::new(config.clone(), sender_seed, cot_send);
@@ -179,6 +189,11 @@ pub async fn run_protocol_record_receiver_mt(
             let _ = output.await.unwrap();
         }
     );
+
+    // Ferret extends in whole LPN iterations, so it produces more than the
+    // requested OT_COUNT. The surplus stays buffered after the request is
+    // fulfilled, so the realized count is OT_COUNT plus what remains available.
+    ot_count + sender.available()
 }
 
 /// Records receiver->sender messages for MT sender replay.
@@ -195,7 +210,7 @@ pub async fn record_for_sender_mt(seed: u64, ot_count: usize) -> RecordedSenderM
     let (mut exec_sender, mut exec_receiver, recorded) =
         recording_mt_context_with_limit(1024 * 1024, max_frame_length());
 
-    run_protocol_record_receiver_mt(
+    let actual_count = run_protocol_record_receiver_mt(
         &mut exec_sender,
         &mut exec_receiver,
         bench_config(),
@@ -212,6 +227,7 @@ pub async fn record_for_sender_mt(seed: u64, ot_count: usize) -> RecordedSenderM
         delta,
         cot_seed,
         sender_seed,
+        actual_count,
     }
 }
 

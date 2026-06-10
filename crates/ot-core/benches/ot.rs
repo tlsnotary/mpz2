@@ -87,24 +87,62 @@ fn kos(c: &mut Criterion) {
 fn ferret(c: &mut Criterion) {
     let mut group = c.benchmark_group("ferret");
     for n in [262144, 1_000_000] {
-        group.throughput(Throughput::Elements(n as u64));
-        group.bench_with_input(BenchmarkId::new("regular", n), &n, |b, &n| {
-            let mut rng = ChaCha12Rng::seed_from_u64(0);
-            let delta = Block::random(&mut rng);
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+        let delta = Block::random(&mut rng);
+        let config = FerretConfig::builder().build().unwrap();
 
-            let config = FerretConfig::builder().build().unwrap();
+        // Runs the protocol to provision `n` correlations, returning both
+        // parties. Extension proceeds in whole LPN iterations, so it overshoots
+        // `n`.
+        let run = |rng: &mut ChaCha12Rng| {
+            let cot = IdealRCOT::new(rng.random(), delta);
+            let mut sender = ferret::Sender::new(rng.random(), config.clone(), cot.clone());
+            let mut receiver = ferret::Receiver::new(rng.random(), config.clone(), cot);
 
+            sender.alloc_bootstrap().unwrap();
+            receiver.alloc_bootstrap().unwrap();
+            sender.acquire_cot().flush().unwrap();
+            receiver.acquire_cot().flush().unwrap();
+            sender.alloc(n).unwrap();
+            receiver.alloc(n).unwrap();
+
+            while sender.wants_extend() && receiver.wants_extend() {
+                sender.start_extend().unwrap();
+                let msg = receiver.start_extend().unwrap();
+                let msg = sender.extend(msg).unwrap();
+                let msg = receiver.extend(msg).unwrap();
+                let msg = sender.check(msg).unwrap();
+                receiver.finish_extend(msg).unwrap();
+                sender.finish_extend().unwrap();
+            }
+
+            (sender, receiver)
+        };
+
+        // Throughput is over the correlations actually produced (the request
+        // rounded up to whole iterations), not the requested `n`. Nothing is
+        // consumed here, so `available()` is exactly that realized count.
+        let actual = run(&mut rng).0.available();
+        group.throughput(Throughput::Elements(actual as u64));
+
+        group.bench_with_input(BenchmarkId::new("regular", n), &n, |b, _| {
+            b.iter(|| black_box(run(&mut rng)));
+        });
+
+        // Steady state: long-lived parties whose internal buffers are warm;
+        // each iteration provisions `n` fresh correlations and drains them,
+        // which is how the extension is used in practice.
+        let (mut sender, mut receiver) = run(&mut rng);
+        let drain = |sender: &mut ferret::Sender<IdealRCOT>,
+                     receiver: &mut ferret::Receiver<IdealRCOT>| {
+            let count = sender.available();
+            black_box(sender.try_send_rcot(count).unwrap());
+            black_box(receiver.try_recv_rcot(count).unwrap());
+        };
+        drain(&mut sender, &mut receiver);
+
+        group.bench_with_input(BenchmarkId::new("steady", n), &n, |b, _| {
             b.iter(|| {
-                let cot = IdealRCOT::new(rng.random(), delta);
-                let mut sender = ferret::Sender::new(rng.random(), config.clone(), cot.clone());
-                let mut receiver = ferret::Receiver::new(rng.random(), config.clone(), cot);
-
-                let init = receiver.initialize().unwrap();
-                sender.initialize(init).unwrap();
-                sender.alloc_bootstrap().unwrap();
-                receiver.alloc_bootstrap().unwrap();
-                sender.acquire_cot().flush().unwrap();
-                receiver.acquire_cot().flush().unwrap();
                 sender.alloc(n).unwrap();
                 receiver.alloc(n).unwrap();
 
@@ -118,8 +156,8 @@ fn ferret(c: &mut Criterion) {
                     sender.finish_extend().unwrap();
                 }
 
-                black_box((sender, receiver));
-            })
+                drain(&mut sender, &mut receiver);
+            });
         });
     }
 }

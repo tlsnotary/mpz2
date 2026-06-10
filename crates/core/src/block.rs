@@ -36,16 +36,6 @@ impl Block {
     pub const ONES: Self = Self([0xff; 16]);
     /// A length 2 array of zero and one blocks
     pub const SELECT_MASK: [Self; 2] = [Self::ZERO, Self::ONES];
-    /// A length 128 vector where each block has a single bit set to 1.
-    pub const MONOMIAL: [Block; 128] = {
-        let mut v = [Block::ZERO; 128];
-        let mut i = 0;
-        while i < 128 {
-            v[i].0[i / 8] = 1 << (i % 8);
-            i += 1;
-        }
-        v
-    };
 
     /// Create a new block
     #[inline]
@@ -455,12 +445,5 @@ mod tests {
 
         assert_eq!(c, Block::inn_prdt_no_red(&a, &b));
         assert_eq!(d, Block::inn_prdt_red(&a, &b));
-    }
-
-    #[test]
-    fn test_monomial_vector() {
-        for i in 0..128 {
-            assert_eq!(u128::from_le_bytes(Block::MONOMIAL[i].0), 1 << i);
-        }
     }
 }
