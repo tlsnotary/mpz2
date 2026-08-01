@@ -8,7 +8,6 @@ use std::sync::Arc;
 use futures::{
     AsyncRead, AsyncWrite,
     future::{self, BoxFuture, Either},
-    stream::{self, StreamExt, TryStreamExt},
 };
 
 #[cfg(any(test, feature = "test-utils"))]
@@ -23,8 +22,9 @@ pub use test::{
 use crate::{ContextId, io::Io, mux::Mux, thread_pool::ThreadPool};
 
 /// Default maximum number of [`map`](Context::map) items processed
-/// concurrently. Both parties must agree on this value, so it is a fixed
-/// constant rather than data- or timing-dependent.
+/// concurrently, and with it the number of channels a `map` opens. Both parties
+/// must agree on this value, so it is a fixed constant rather than data- or
+/// timing-dependent.
 pub const DEFAULT_CONCURRENCY_LIMIT: usize = 32;
 
 /// A task execution context.
@@ -157,13 +157,41 @@ impl Context {
 
     /// Applies `f` to each item concurrently, returning the results in input
     /// order.
+    ///
+    /// # Channel usage
+    ///
+    /// Every child context allocates a channel from the multiplexer, and
+    /// multiplexers impose a hard limit on how many channels they will track.
+    /// The number of items handed to this method is a function of the workload
+    /// (e.g. one item per circuit call), so giving each item its own channel
+    /// would make channel usage unbounded and blow past that limit on larger
+    /// workloads (tlsn's mux, for example, caps streams at 512 and tears the
+    /// connection down beyond it).
+    ///
+    /// Bounding only how many items run *at once* is not enough: a mux frees a
+    /// channel when its stream is dropped, but that release is processed by the
+    /// connection task and lags behind the rate at which a sliding window opens
+    /// new ones, so a per-item channel layout still exhausts the mux's budget
+    /// on a large enough workload.
+    ///
+    /// Items are therefore distributed round-robin over at most
+    /// `concurrency_limit` *lanes*, each of which owns a single child context
+    /// and processes its items sequentially. The number of channels ever opened
+    /// is `min(items.len(), concurrency_limit)`, independent of the workload
+    /// size, and that is also the concurrency bound.
+    ///
+    /// The lane assignment (`index % lanes`) and the order of items within a
+    /// lane depend only on the item index, so both parties derive an identical
+    /// channel layout and an identical per-channel message order. Both must
+    /// configure the same limit — see
+    /// [`SessionBuilder::concurrency_limit`](crate::SessionBuilder::concurrency_limit).
     pub async fn map<F, T, R>(&mut self, items: Vec<T>, f: F) -> Result<Vec<R>, ContextError>
     where
         F: for<'a> Fn(&'a mut Context, T) -> BoxFuture<'a, R> + Clone + Send + 'static,
         T: Send + 'static,
         R: Send + 'static,
     {
-        let (mux, pool, concurrency_limit) = match &self.mode {
+        let (pool, concurrency_limit) = match &self.mode {
             Mode::Single => {
                 let mut results = Vec::with_capacity(items.len());
                 for item in items {
@@ -172,41 +200,55 @@ impl Context {
                 return Ok(results);
             }
             Mode::Multi {
-                mux,
                 pool,
                 concurrency_limit,
-            } => (mux.clone(), pool.clone(), *concurrency_limit),
+                ..
+            } => (pool.clone(), *concurrency_limit),
         };
+
+        let len = items.len();
+        if len == 0 {
+            // Still consume a fork index so that both parties stay in sync.
+            let _ = self.next_fork();
+            return Ok(Vec::new());
+        }
 
         let parent_id = self.next_fork();
 
-        // Each item lazily opens its own channel only once `buffered` polls it,
-        // so at most `limit` channels are open at any time. Channel IDs stay
-        // keyed by item index and results are yielded in input order, so the
-        // bound changes neither the wire protocol nor the output ordering.
-        stream::iter(items.into_iter().enumerate())
-            .map(move |(i, item)| {
-                let i = u32::try_from(i).expect("more than u32::MAX items");
-                let id = parent_id.child(i);
-                let (mux, pool, f) = (mux.clone(), pool.clone(), f.clone());
-                async move {
-                    let io = mux.open(id.as_ref()).map_err(ContextError::mux)?;
-                    let mut ctx = Context {
-                        id,
-                        io,
-                        mode: Mode::Multi {
-                            mux,
-                            pool: pool.clone(),
-                            concurrency_limit,
-                        },
-                        fork_counter: 0,
-                    };
-                    Ok(run(pool.as_ref(), async move { f(&mut ctx, item).await }).await)
+        let lanes = len.min(concurrency_limit);
+        let mut queues: Vec<Vec<(usize, T)>> = (0..lanes)
+            .map(|_| Vec::with_capacity(len.div_ceil(lanes)))
+            .collect();
+        for (i, item) in items.into_iter().enumerate() {
+            queues[i % lanes].push((i, item));
+        }
+
+        let mut tasks = Vec::with_capacity(lanes);
+        for (lane, queue) in queues.into_iter().enumerate() {
+            let lane = u32::try_from(lane).expect("lane count fits in u32");
+            let mut ctx = self.child(parent_id.child(lane))?;
+            let f = f.clone();
+            tasks.push(run(pool.as_ref(), async move {
+                let mut results = Vec::with_capacity(queue.len());
+                for (i, item) in queue {
+                    results.push((i, f(&mut ctx, item).await));
                 }
-            })
-            .buffered(concurrency_limit)
-            .try_collect()
-            .await
+                results
+            }));
+        }
+
+        // Restore input order.
+        let mut results: Vec<Option<R>> = (0..len).map(|_| None).collect();
+        for lane_results in future::join_all(tasks).await {
+            for (i, result) in lane_results {
+                results[i] = Some(result);
+            }
+        }
+
+        Ok(results
+            .into_iter()
+            .map(|result| result.expect("every item is assigned to exactly one lane"))
+            .collect())
     }
 
     /// Runs `a` and `b` concurrently and returns both results.
