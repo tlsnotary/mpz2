@@ -216,11 +216,11 @@ impl Context {
         let parent_id = self.next_fork();
 
         let lanes = len.min(concurrency_limit);
-        let mut queues: Vec<Vec<(usize, T)>> = (0..lanes)
+        let mut queues: Vec<Vec<T>> = (0..lanes)
             .map(|_| Vec::with_capacity(len.div_ceil(lanes)))
             .collect();
         for (i, item) in items.into_iter().enumerate() {
-            queues[i % lanes].push((i, item));
+            queues[i % lanes].push(item);
         }
 
         // Open every lane's channel before spawning any task. `child` only
@@ -240,25 +240,26 @@ impl Context {
             let f = f.clone();
             tasks.push(run(pool.as_ref(), async move {
                 let mut results = Vec::with_capacity(queue.len());
-                for (i, item) in queue {
-                    results.push((i, f(&mut ctx, item).await));
+                for item in queue {
+                    results.push(f(&mut ctx, item).await);
                 }
                 results
             }));
         }
 
-        // Restore input order.
-        let mut results: Vec<Option<R>> = (0..len).map(|_| None).collect();
-        for lane_results in future::join_all(tasks).await {
-            for (i, result) in lane_results {
-                results[i] = Some(result);
-            }
-        }
-
-        Ok(results
+        // Interleave lane outputs back into input order: lane `l`'s j-th
+        // result corresponds to original index `l + j * lanes`, the mirror
+        // of how items were scattered into lanes above.
+        let mut iters: Vec<_> = future::join_all(tasks)
+            .await
             .into_iter()
-            .map(|result| result.expect("every item is assigned to exactly one lane"))
-            .collect())
+            .map(Vec::into_iter)
+            .collect();
+        let mut out = Vec::with_capacity(len);
+        for i in 0..len {
+            out.push(iters[i % lanes].next().expect("one result per item"));
+        }
+        Ok(out)
     }
 
     /// Runs `a` and `b` concurrently and returns both results.
