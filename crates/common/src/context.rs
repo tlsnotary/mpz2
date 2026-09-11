@@ -425,7 +425,7 @@ where
 
 /// Error for [`Context`].
 #[derive(Debug, thiserror::Error)]
-#[error("context mux error")]
+#[error("context mux error: {source}")]
 pub struct ContextError {
     #[source]
     source: std::io::Error,
