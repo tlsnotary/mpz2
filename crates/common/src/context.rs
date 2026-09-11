@@ -160,21 +160,7 @@ impl Context {
     ///
     /// # Channel usage
     ///
-    /// Every child context allocates a channel from the multiplexer, and
-    /// multiplexers impose a hard limit on how many channels they will track.
-    /// The number of items handed to this method is a function of the workload
-    /// (e.g. one item per circuit call), so giving each item its own channel
-    /// would make channel usage unbounded and blow past that limit on larger
-    /// workloads (tlsn's mux, for example, caps streams at 512 and tears the
-    /// connection down beyond it).
-    ///
-    /// Bounding only how many items run *at once* is not enough: a mux frees a
-    /// channel when its stream is dropped, but that release is processed by the
-    /// connection task and lags behind the rate at which a sliding window opens
-    /// new ones, so a per-item channel layout still exhausts the mux's budget
-    /// on a large enough workload.
-    ///
-    /// Items are therefore distributed round-robin over at most
+    /// Items are distributed round-robin over at most
     /// `concurrency_limit` *lanes*, each of which owns a single child context
     /// and processes its items sequentially. The number of channels ever opened
     /// is `min(items.len(), concurrency_limit)`, independent of the workload
@@ -185,6 +171,20 @@ impl Context {
     /// channel layout and an identical per-channel message order. Both must
     /// configure the same limit — see
     /// [`SessionBuilder::concurrency_limit`](crate::SessionBuilder::concurrency_limit).
+    ///
+    /// # Requirements on `f`
+    ///
+    /// Items may share a channel, so each invocation must consume exactly
+    /// the messages its counterpart produced — on every path, including
+    /// early returns. Items sharing a channel are not isolated from each
+    /// other: messages one item leaves unread are read by the next item on
+    /// that channel, and since they carry the same wire types this is not
+    /// detected.
+    ///
+    /// # Failure
+    ///
+    /// Not a recovery boundary. If any item fails, the results of this call
+    /// and of every subsequent operation on this session are meaningless.
     pub async fn map<F, T, R>(&mut self, items: Vec<T>, f: F) -> Result<Vec<R>, ContextError>
     where
         F: for<'a> Fn(&'a mut Context, T) -> BoxFuture<'a, R> + Clone + Send + 'static,
