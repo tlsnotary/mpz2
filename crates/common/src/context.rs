@@ -223,10 +223,20 @@ impl Context {
             queues[i % lanes].push((i, item));
         }
 
-        let mut tasks = Vec::with_capacity(lanes);
-        for (lane, queue) in queues.into_iter().enumerate() {
+        // Open every lane's channel before spawning any task. `child` only
+        // opens the channel and never touches the wire, so this makes
+        // channel-open failure atomic: either every lane starts, or none do.
+        // Interleaving open and spawn instead would let a later lane's
+        // open failure drop `tasks`, cancelling already-running earlier
+        // lanes mid-message and desyncing the peer.
+        let mut ctxs = Vec::with_capacity(lanes);
+        for lane in 0..lanes {
             let lane = u32::try_from(lane).expect("lane count fits in u32");
-            let mut ctx = self.child(parent_id.child(lane))?;
+            ctxs.push(self.child(parent_id.child(lane))?);
+        }
+
+        let mut tasks = Vec::with_capacity(lanes);
+        for (mut ctx, queue) in ctxs.into_iter().zip(queues) {
             let f = f.clone();
             tasks.push(run(pool.as_ref(), async move {
                 let mut results = Vec::with_capacity(queue.len());
