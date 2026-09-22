@@ -8,7 +8,6 @@ use std::sync::Arc;
 use futures::{
     AsyncRead, AsyncWrite,
     future::{self, BoxFuture, Either},
-    stream::{self, StreamExt, TryStreamExt},
 };
 
 #[cfg(any(test, feature = "test-utils"))]
@@ -23,8 +22,9 @@ pub use test::{
 use crate::{ContextId, io::Io, mux::Mux, thread_pool::ThreadPool};
 
 /// Default maximum number of [`map`](Context::map) items processed
-/// concurrently. Both parties must agree on this value, so it is a fixed
-/// constant rather than data- or timing-dependent.
+/// concurrently, and with it the number of channels a `map` opens. Both parties
+/// must agree on this value, so it is a fixed constant rather than data- or
+/// timing-dependent.
 pub const DEFAULT_CONCURRENCY_LIMIT: usize = 32;
 
 /// A task execution context.
@@ -157,13 +157,41 @@ impl Context {
 
     /// Applies `f` to each item concurrently, returning the results in input
     /// order.
+    ///
+    /// # Channel usage
+    ///
+    /// Items are distributed round-robin over at most
+    /// `concurrency_limit` *lanes*, each of which owns a single child context
+    /// and processes its items sequentially. The number of channels ever opened
+    /// is `min(items.len(), concurrency_limit)`, independent of the workload
+    /// size, and that is also the concurrency bound.
+    ///
+    /// The lane assignment (`index % lanes`) and the order of items within a
+    /// lane depend only on the item index, so both parties derive an identical
+    /// channel layout and an identical per-channel message order. Both must
+    /// configure the same limit — see
+    /// [`SessionBuilder::concurrency_limit`](crate::SessionBuilder::concurrency_limit).
+    ///
+    /// # Requirements on `f`
+    ///
+    /// Items may share a channel, so each invocation must consume exactly
+    /// the messages its counterpart produced — on every path, including
+    /// early returns. Items sharing a channel are not isolated from each
+    /// other: messages one item leaves unread are read by the next item on
+    /// that channel, and since they carry the same wire types this is not
+    /// detected.
+    ///
+    /// # Failure
+    ///
+    /// Not a recovery boundary. If any item fails, the results of this call
+    /// and of every subsequent operation on this session are meaningless.
     pub async fn map<F, T, R>(&mut self, items: Vec<T>, f: F) -> Result<Vec<R>, ContextError>
     where
         F: for<'a> Fn(&'a mut Context, T) -> BoxFuture<'a, R> + Clone + Send + 'static,
         T: Send + 'static,
         R: Send + 'static,
     {
-        let (mux, pool, concurrency_limit) = match &self.mode {
+        let (pool, concurrency_limit) = match &self.mode {
             Mode::Single => {
                 let mut results = Vec::with_capacity(items.len());
                 for item in items {
@@ -172,41 +200,66 @@ impl Context {
                 return Ok(results);
             }
             Mode::Multi {
-                mux,
                 pool,
                 concurrency_limit,
-            } => (mux.clone(), pool.clone(), *concurrency_limit),
+                ..
+            } => (pool.clone(), *concurrency_limit),
         };
+
+        let len = items.len();
+        if len == 0 {
+            // Still consume a fork index so that both parties stay in sync.
+            let _ = self.next_fork();
+            return Ok(Vec::new());
+        }
 
         let parent_id = self.next_fork();
 
-        // Each item lazily opens its own channel only once `buffered` polls it,
-        // so at most `limit` channels are open at any time. Channel IDs stay
-        // keyed by item index and results are yielded in input order, so the
-        // bound changes neither the wire protocol nor the output ordering.
-        stream::iter(items.into_iter().enumerate())
-            .map(move |(i, item)| {
-                let i = u32::try_from(i).expect("more than u32::MAX items");
-                let id = parent_id.child(i);
-                let (mux, pool, f) = (mux.clone(), pool.clone(), f.clone());
-                async move {
-                    let io = mux.open(id.as_ref()).map_err(ContextError::mux)?;
-                    let mut ctx = Context {
-                        id,
-                        io,
-                        mode: Mode::Multi {
-                            mux,
-                            pool: pool.clone(),
-                            concurrency_limit,
-                        },
-                        fork_counter: 0,
-                    };
-                    Ok(run(pool.as_ref(), async move { f(&mut ctx, item).await }).await)
+        let lanes = len.min(concurrency_limit);
+        let mut queues: Vec<Vec<T>> = (0..lanes)
+            .map(|_| Vec::with_capacity(len.div_ceil(lanes)))
+            .collect();
+        for (i, item) in items.into_iter().enumerate() {
+            queues[i % lanes].push(item);
+        }
+
+        // Open every lane's channel before spawning any task. `child` only
+        // opens the channel and never touches the wire, so this makes
+        // channel-open failure atomic: either every lane starts, or none do.
+        // Interleaving open and spawn instead would let a later lane's
+        // open failure drop `tasks`, cancelling already-running earlier
+        // lanes mid-message and desyncing the peer.
+        let mut ctxs = Vec::with_capacity(lanes);
+        for lane in 0..lanes {
+            let lane = u32::try_from(lane).expect("lane count fits in u32");
+            ctxs.push(self.child(parent_id.child(lane))?);
+        }
+
+        let mut tasks = Vec::with_capacity(lanes);
+        for (mut ctx, queue) in ctxs.into_iter().zip(queues) {
+            let f = f.clone();
+            tasks.push(run(pool.as_ref(), async move {
+                let mut results = Vec::with_capacity(queue.len());
+                for item in queue {
+                    results.push(f(&mut ctx, item).await);
                 }
-            })
-            .buffered(concurrency_limit)
-            .try_collect()
+                results
+            }));
+        }
+
+        // Interleave lane outputs back into input order: lane `l`'s j-th
+        // result corresponds to original index `l + j * lanes`, the mirror
+        // of how items were scattered into lanes above.
+        let mut iters: Vec<_> = future::join_all(tasks)
             .await
+            .into_iter()
+            .map(Vec::into_iter)
+            .collect();
+        let mut out = Vec::with_capacity(len);
+        for i in 0..len {
+            out.push(iters[i % lanes].next().expect("one result per item"));
+        }
+        Ok(out)
     }
 
     /// Runs `a` and `b` concurrently and returns both results.
@@ -372,7 +425,7 @@ where
 
 /// Error for [`Context`].
 #[derive(Debug, thiserror::Error)]
-#[error("context mux error")]
+#[error("context mux error: {source}")]
 pub struct ContextError {
     #[source]
     source: std::io::Error,
