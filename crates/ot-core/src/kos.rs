@@ -352,8 +352,8 @@ mod tests {
         while receiver.wants_extend() {
             let mut extend = receiver.extend().unwrap();
 
-            // Flip a bit in the receiver's extension message (breaking the mono-chrome
-            // choice vector)
+            // Flip a bit in the receiver's extension message (breaking the
+            // mono-chrome choice vector)
             *extend.us.first_mut().unwrap() ^= 1;
 
             sender.extend(extend).unwrap();

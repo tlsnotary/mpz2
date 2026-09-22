@@ -571,8 +571,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        // MT context needs at least 2 threads (garbler uses try_join which forks into
-        // 2)
+        // MT context needs at least 2 threads (garbler uses try_join which
+        // forks into 2)
         let thread_counts: Vec<u32> = vec![2, 3, 4, 6, 8, 12, 16]
             .into_iter()
             .filter(|&c| c <= available_cpus)

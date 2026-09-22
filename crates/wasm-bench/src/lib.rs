@@ -8,6 +8,9 @@
 //! - `zk`: QuickSilver ZK benchmarks (core + protocol + prover/verifier)
 //! - `ot`: Oblivious transfer benchmarks (Ferret)
 
+// wasm_bindgen's `getter_with_clone` codegen calls `.clone()` on Copy fields.
+#![cfg_attr(target_arch = "wasm32", allow(clippy::clone_on_copy))]
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 

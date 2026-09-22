@@ -211,7 +211,8 @@ fn bench_verifier_check(c: &mut Criterion) {
         group.bench_function(BenchmarkId::new("check", name), |b| {
             b.iter_batched(
                 || {
-                    // SETUP (not timed): build prover+verifier, run execute, run prover check
+                    // SETUP (not timed): build prover+verifier, run execute,
+                    // run prover check
                     let mut prover = Prover::default();
                     let mut verifier = Verifier::new(delta);
 

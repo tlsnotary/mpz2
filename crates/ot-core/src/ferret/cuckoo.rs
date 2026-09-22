@@ -72,8 +72,8 @@ impl CuckooHash {
             // Inserts the value to position `pos`.
             let opt_item = table[pos].replace(item);
 
-            // If position `pos` is not empty before the above insertion, iteratively
-            // inserts the obtained value.
+            // If position `pos` is not empty before the above insertion,
+            // iteratively inserts the obtained value.
             if let Some(x) = opt_item {
                 item = x;
                 item.hash_idx = (item.hash_idx + 1) % HASH_NUM;

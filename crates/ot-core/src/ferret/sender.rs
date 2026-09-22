@@ -119,7 +119,8 @@ where
             return Err(ErrorRepr::State("not in extend state".to_string()).into());
         };
 
-        // If available COTs are insufficient, we bootstrap from the inner COT instance.
+        // If available COTs are insufficient, we bootstrap from the inner COT
+        // instance.
         if self.wants_bootstrap() {
             let missing = self.config.bootstrap_cost() - self.keys.len();
             let RCOTSenderOutput { keys, .. } = self

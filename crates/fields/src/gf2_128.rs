@@ -102,15 +102,16 @@ impl Mul for Gf2_128 {
     /// polynomial.
     #[inline]
     fn mul(self, rhs: Self) -> Self::Output {
-        // See NIST SP 800-38D, Recommendation for Block Cipher Modes of Operation:
-        // Galois/Counter Mode (GCM) and GMAC.
+        // See NIST SP 800-38D, Recommendation for Block Cipher Modes of
+        // Operation: Galois/Counter Mode (GCM) and GMAC.
         //
-        // Note that the NIST specification uses a different representation of the
-        // polynomial, where the bits are reversed. This "bit reflection" is
-        // discussed in Intel® Carry-Less Multiplication Instruction and its Usage for
-        // Computing the GCM Mode.
+        // Note that the NIST specification uses a different representation of
+        // the polynomial, where the bits are reversed. This "bit
+        // reflection" is discussed in Intel® Carry-Less Multiplication
+        // Instruction and its Usage for Computing the GCM Mode.
         //
-        // The irreducible polynomial is the same, ie `x^128 + x^7 + x^2 + x + 1`.
+        // The irreducible polynomial is the same, ie `x^128 + x^7 + x^2 + x +
+        // 1`.
         Gf2_128(gf128_mul(self.0, rhs.0))
     }
 }
