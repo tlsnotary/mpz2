@@ -132,8 +132,8 @@ impl Receiver<state::Setup> {
 
         let SenderPayload { payload } = payload;
 
-        // Check that the number of ciphertexts does not exceed the number of pending
-        // keys
+        // Check that the number of ciphertexts does not exceed the number of
+        // pending keys
         if payload.len() != decryption_keys.len() {
             return Err(ReceiverError::CountMismatch(
                 decryption_keys.len(),

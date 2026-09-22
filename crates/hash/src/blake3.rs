@@ -21,7 +21,7 @@ static SERIALIZE_OUTPUT: LazyLock<Arc<Circuit>> = LazyLock::new(|| {
 
     for _ in 0..8 {
         let word: [_; 32] = from_fn(|_| builder.add_input());
-        for byte in word.chunks_exact(8) {
+        for byte in word.as_chunks::<8>().0 {
             for &bit in byte {
                 let out = builder.add_id_gate(bit);
                 builder.add_output(out);
@@ -252,11 +252,12 @@ impl Chunk {
         // Get the number of blocks after padding.
         let no_of_blocks = self.blocks.len();
 
-        // Creates the state for the last block — [`self.state`] can be used with every
-        // block, except for the last block, where its length can be smaller
-        // than BLOCK_LEN.
+        // Creates the state for the last block — [`self.state`] can be used
+        // with every block, except for the last block, where its length
+        // can be smaller than BLOCK_LEN.
         let last_state = if is_root {
-            // When there is only 1 chunk to be hashed, i.e. this chunk is the root.
+            // When there is only 1 chunk to be hashed, i.e. this chunk is the
+            // root.
             State::new(vm, 0, last_block_len_bytes)?
         } else {
             State::new(vm, self.counter, last_block_len_bytes)?
@@ -336,8 +337,8 @@ impl Blake3 {
         flags: u32,
     ) -> Result<Self, Blake3Error> {
         let initial_cv = ChainingValue::new(vm, initial_cv_vis, initial_cv)?;
-        // Precomputes the state value required for parent chaining value calculation in
-        // `parent_cv`. Ref: https://github.com/BLAKE3-team/BLAKE3/blob/3a90f0f06a429e6ce1d337b28156a75d2a372d7b/reference_impl/reference_impl.rs#L249-L252.
+        // Precomputes the state value required for parent chaining value
+        // calculation in `parent_cv`. Ref: https://github.com/BLAKE3-team/BLAKE3/blob/3a90f0f06a429e6ce1d337b28156a75d2a372d7b/reference_impl/reference_impl.rs#L249-L252.
         let parent_state = State::new(vm, 0, blake3::BLOCK_LEN as u32)?;
         Ok(Self {
             chunk: Chunk::new(vm, initial_cv, flags, 0)?,
@@ -450,8 +451,9 @@ impl Blake3 {
             // If the current chunk is complete, finalize it and reset the
             // chunk. More data is coming, so this chunk is not the root.
             //
-            // This eagerly compresses each chunk so that the efficient algorithm in
-            // [`add_chunk_chaining_value`] can be used.
+            // This eagerly compresses each chunk so that the efficient
+            // algorithm in [`add_chunk_chaining_value`] can be
+            // used.
             if self.chunk.len() == CHUNK_SIZE {
                 let chunk_cv = self.chunk.compress(vm, false)?;
                 let total_chunks = self.chunk.counter + 1;
@@ -471,12 +473,14 @@ impl Blake3 {
     /// Finalizes the hash.
     /// Ref: https://github.com/BLAKE3-team/BLAKE3/blob/3a90f0f06a429e6ce1d337b28156a75d2a372d7b/reference_impl/reference_impl.rs#L357-L373.
     pub fn finalize(&mut self, vm: &mut dyn Vm<Binary>) -> Result<Array<U8, 32>, Blake3Error> {
-        // Starting with the current chunk, compute all the parent chaining values
-        // along the right edge of the tree, until we have the root.
+        // Starting with the current chunk, compute all the parent chaining
+        // values along the right edge of the tree, until we have the
+        // root.
         let mut parent_nodes_remaining = self.cv_stack.len();
 
         let output = if parent_nodes_remaining == 0 {
-            // When there is only 1 chunk to be hashed, i.e. self.chunk is the root.
+            // When there is only 1 chunk to be hashed, i.e. self.chunk is the
+            // root.
             self.chunk.compress(vm, true)?
         } else {
             let mut output = self.chunk.compress(vm, false)?;
@@ -628,7 +632,7 @@ mod test {
         assert_eq!(a, b);
 
         let mut bytes = [0u8; 32];
-        for (chunk, word) in bytes.chunks_exact_mut(4).zip(a) {
+        for (chunk, word) in bytes.as_chunks_mut::<4>().0.iter_mut().zip(a) {
             chunk.copy_from_slice(&word.to_le_bytes());
         }
 

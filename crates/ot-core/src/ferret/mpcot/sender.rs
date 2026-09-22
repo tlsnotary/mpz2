@@ -65,8 +65,8 @@ impl MPCOTSender<Initialized> {
             Initialized::Uniform { hashes } => {
                 let buckets = Buckets::new(&hashes, count, len);
 
-                // First pad (length + 1) to a pow of 2, then computes `log(length + 1)` of each
-                // bucket.
+                // First pad (length + 1) to a pow of 2, then computes
+                // `log(length + 1)` of each bucket.
                 let mut bs = vec![];
                 let mut spcot_lengths = vec![];
                 for len in buckets.iter_buckets() {

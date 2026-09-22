@@ -195,8 +195,8 @@ mod tests {
 
     #[test]
     // Test against test vectors from
-    // Intel® Carry-Less Multiplication Instruction and its Usage for Computing the
-    // GCM Mode
+    // Intel® Carry-Less Multiplication Instruction and its Usage for Computing
+    // the GCM Mode
     fn clmul_test_vectors() {
         use super::backend::Clmul;
 

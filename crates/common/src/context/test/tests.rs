@@ -119,7 +119,8 @@ async fn test_replay_mt_context() {
 
 #[tokio::test]
 async fn test_recording_mt_multiple_channels() {
-    // Test that recording works correctly with multiple channels via ctx.try_join()
+    // Test that recording works correctly with multiple channels via
+    // ctx.try_join()
     let (exec_0, exec_1, recorded) = recording_mt_context(1024 * 1024);
 
     let mut ctx_0 = exec_0.new_context().unwrap();

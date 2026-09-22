@@ -44,8 +44,8 @@ fn mix(
     state_indices: (usize, usize, usize, usize),
     msg_indices: (usize, usize),
 ) {
-    // Note that bits are stored in LSB0 order, so the word-wise rightward rotation
-    // translates to a leftward rotation of the bitslice.
+    // Note that bits are stored in LSB0 order, so the word-wise rightward
+    // rotation translates to a leftward rotation of the bitslice.
 
     let (a, b, c, d) = state_indices;
     let (mx, my) = msg_indices;

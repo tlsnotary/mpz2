@@ -7,7 +7,7 @@
 
 use std::arch::wasm32::*;
 
-use crate::bmul_simd::{bit_spread_v128, bmul128_full, bmul64_raw, recover_raw};
+use crate::bmul_simd::{bit_spread_v128, bmul64_raw, bmul128_full, recover_raw};
 
 use super::Gf2_128;
 

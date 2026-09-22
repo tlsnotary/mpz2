@@ -289,7 +289,8 @@ mod tests {
             || todo!()
         }
 
-        // The future should be send even if the type returned by the closure is not.
+        // The future should be send even if the type returned by the closure is
+        // not.
         is_send(syncer.sync(&mut io, closure_return_not_send()));
     }
 }

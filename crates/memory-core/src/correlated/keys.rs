@@ -36,8 +36,8 @@ impl Key {
             &Block::ZERO
         };
 
-        // Setting LSB(key) == 0 to enable the prover to store the authenticated bit in
-        // LSB(MAC).
+        // Setting LSB(key) == 0 to enable the prover to store the authenticated
+        // bit in LSB(MAC).
         self.0.set_lsb(false);
     }
 
@@ -166,7 +166,8 @@ impl KeyStore {
     #[inline]
     pub fn new(delta: Delta) -> Self {
         let mut public_one = Key(MAC_ONE ^ delta.as_block());
-        // By definition, LSB(public_one) == 0. We set it here again for expliciteness.
+        // By definition, LSB(public_one) == 0. We set it here again for
+        // expliciteness.
         public_one.0.set_lsb(false);
         Self {
             keys: Store::default(),

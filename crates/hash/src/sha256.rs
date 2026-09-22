@@ -22,7 +22,7 @@ static SERIALIZE_STATE: LazyLock<Arc<Circuit>> = LazyLock::new(|| {
 
     for _ in 0..8 {
         let word: [_; 32] = from_fn(|_| builder.add_input());
-        for byte in word.chunks_exact(8).rev() {
+        for byte in word.as_chunks::<8>().0.iter().rev() {
             for &bit in byte {
                 let out = builder.add_id_gate(bit);
                 builder.add_output(out);
@@ -172,11 +172,13 @@ impl Sha256 {
 
         // begin with the original message of length L bits
         // append a single '1' bit
-        // append K '0' bits, where K is the minimum number >= 0 such that (L + 1 + K +
+        // append K '0' bits, where K is the minimum number >= 0 such that (L +
+        // 1 + K +
         // 64) is a multiple of 512 append L as a 64-bit big-endian integer,
         // making the total post-processed length a multiple of 512 bits
-        // such that the bits in the message are: <original message of length L> 1 <K
-        // zeros> <L as 64 bit integer> , (the number of bits will be a multiple of 512)
+        // such that the bits in the message are: <original message of length L>
+        // 1 <K zeros> <L as 64 bit integer> , (the number of bits will
+        // be a multiple of 512)
 
         let len = (self.processed * BLOCK_SIZE) + self.blocks.iter().map(|b| b.len).sum::<usize>();
         let total_len = (len + 1 + 64).next_multiple_of(BLOCK_SIZE);

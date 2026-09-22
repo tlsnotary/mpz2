@@ -216,7 +216,8 @@ async fn verifier_check_impl(n: u32, concurrency: u32, threshold: usize) -> Benc
             let mut total_check_time = 0.0;
 
             for _ in 0..n {
-                // Setup (untimed): run execute for all circuits (both prover and verifier)
+                // Setup (untimed): run execute for all circuits (both prover
+                // and verifier)
                 let mut prover = Prover::default();
                 let mut verifier = Verifier::new(delta);
 

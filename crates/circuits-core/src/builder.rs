@@ -190,8 +190,8 @@ impl CircuitBuilder {
 
     /// Builds the circuit.
     pub fn build(mut self) -> Result<Circuit, BuilderError> {
-        // First shift all IDs left by 2 since constants are factored out when adding
-        // gates.
+        // First shift all IDs left by 2 since constants are factored out when
+        // adding gates.
         self.inputs.iter_mut().for_each(|input| input.shift_left(2));
         self.gates.iter_mut().for_each(|gate| gate.shift_left(2));
         self.outputs
@@ -221,8 +221,9 @@ impl CircuitBuilder {
                 | Gate::Xor { z, .. }
                 | Gate::Inv { z, .. }
                 | Gate::Id { z, .. } => {
-                    // If the ID is zero then this gate output is not in the last layer of the
-                    // circuit. So we just give it the next available ID.
+                    // If the ID is zero then this gate output is not in the
+                    // last layer of the circuit. So we just
+                    // give it the next available ID.
                     let id = if id_map[z.id()] == 0 {
                         let id = next_id;
                         id_map[z.id()] = id;

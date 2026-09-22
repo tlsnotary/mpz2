@@ -225,8 +225,9 @@ where
                     while !call_stack.is_empty() {
                         let calls = take_preprocess_calls(&mut call_stack);
 
-                        // There must be at least one call ready for preprocessing
-                        // in a non-empty call stack.
+                        // There must be at least one call ready for
+                        // preprocessing in a non-empty
+                        // call stack.
                         debug_assert!(!calls.is_empty());
 
                         let store = store.clone();

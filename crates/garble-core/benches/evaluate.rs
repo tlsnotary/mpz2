@@ -64,14 +64,15 @@ fn bench_evaluate(c: &mut Criterion) {
         });
 
         // Batched (multiple gates at a time)
-        // Note: EncryptedGateBatch doesn't implement Clone, so we regenerate per
-        // iteration
+        // Note: EncryptedGateBatch doesn't implement Clone, so we regenerate
+        // per iteration
         group.bench_function(BenchmarkId::new("batched", name), |b| {
             let mut ev = Evaluator::default();
             let mut gb = Garbler::default();
             b.iter(|| {
                 for _ in 0..iterations {
-                    // Regenerate batches (not timed separately, but included in measurement)
+                    // Regenerate batches (not timed separately, but included in
+                    // measurement)
                     let mut iter = gb.generate_batched(circuit, delta, &inputs).unwrap();
                     let batches: Vec<_> = iter.by_ref().collect();
                     let _ = iter.finish().unwrap();
@@ -125,7 +126,8 @@ fn bench_evaluate_parallel(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(actual_gates));
 
-        // Parallel evaluation using evaluate_garbled_circuits (uses rayon par_iter)
+        // Parallel evaluation using evaluate_garbled_circuits (uses rayon
+        // par_iter)
         group.bench_function(BenchmarkId::new("rayon", name), |b| {
             b.iter(|| {
                 let circs: Vec<_> = garbled_circuits

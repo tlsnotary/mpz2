@@ -152,8 +152,8 @@ impl Sender<state::Extension> {
         iter.for_each(|(((b, rng), q), u)| {
             // Reuse `q` to avoid memory allocation for tⁱ_∆ᵢ
             rng.fill_bytes(q);
-            // If `b` (i.e. ∆ᵢ) is true, xor `u` into `q`, otherwise xor 0 into `q`
-            // (constant time).
+            // If `b` (i.e. ∆ᵢ) is true, xor `u` into `q`, otherwise xor 0 into
+            // `q` (constant time).
             let u = if b { u } else { &zero };
             q.iter_mut().zip(u).for_each(|(q, u)| *q ^= u);
         });
@@ -202,7 +202,8 @@ impl Sender<state::Extension> {
         }
         let chi_seed = std::mem::take(&mut self.state.chi).ok_or(SenderError::ChiNotSet)?;
 
-        // Make sure we have enough sacrificial OTs to perform the consistency check.
+        // Make sure we have enough sacrificial OTs to perform the consistency
+        // check.
         if self.state.unchecked_qs.len() < SSP {
             return Err(SenderError::InsufficientSetup {
                 expected: SSP,

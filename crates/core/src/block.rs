@@ -158,7 +158,8 @@ impl Block {
         // SAFETY: `slice.len() * Block::LEN` cannot overflow because `slice` is
         // already in the address space.
         let len = unsafe { slice.len().unchecked_mul(Self::LEN) };
-        // SAFETY: `[u8]` is layout-identical to `[u8; 16]` of which block is a newtype.
+        // SAFETY: `[u8]` is layout-identical to `[u8; 16]` of which block is a
+        // newtype.
         unsafe { from_raw_parts(slice.as_ptr().cast(), len) }
     }
 
@@ -166,10 +167,11 @@ impl Block {
     pub fn array_as_flattened_bytes<const N: usize>(slice: &[[Self; N]]) -> &[u8] {
         // This is equivalent to `<[[u8; 16 * N]]>::as_flattened`
 
-        // SAFETY: `slice.len() * N * Block::LEN` cannot overflow because `slice` is
-        // already in the address space.
+        // SAFETY: `slice.len() * N * Block::LEN` cannot overflow because
+        // `slice` is already in the address space.
         let len = unsafe { slice.len().unchecked_mul(N * Self::LEN) };
-        // SAFETY: `[u8]` is layout-identical to `[u8; 16]` of which block is a newtype.
+        // SAFETY: `[u8]` is layout-identical to `[u8; 16]` of which block is a
+        // newtype.
         unsafe { from_raw_parts(slice.as_ptr().cast(), len) }
     }
 

@@ -170,7 +170,8 @@ impl IdealCOTReceiver {
                 )));
             }
 
-            // Compute correlated messages: msg[i] = if choice { key ^ delta } else { key }
+            // Compute correlated messages: msg[i] = if choice { key ^ delta }
+            // else { key }
             let msgs: Vec<Block> = sender_batch
                 .keys
                 .into_iter()

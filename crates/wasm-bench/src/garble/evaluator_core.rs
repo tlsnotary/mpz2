@@ -141,8 +141,8 @@ pub async fn garble_core_half_gates_evaluate_parallel(n: u32, concurrency: u32) 
     let result_clone = result.clone();
 
     let _handle = web_spawn::spawn(move || {
-        // Create a local thread pool (don't use build_global which fails if pool
-        // exists)
+        // Create a local thread pool (don't use build_global which fails if
+        // pool exists)
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(concurrency as usize)
             .spawn_handler(|thread| {
@@ -196,7 +196,8 @@ pub async fn garble_core_half_gates_evaluate_parallel(n: u32, concurrency: u32) 
                         .map(|gc| (circuit.clone(), eval_inputs.clone(), gc.clone()))
                         .collect();
 
-                    // Timed: parallel evaluation using par_iter directly in local pool
+                    // Timed: parallel evaluation using par_iter directly in
+                    // local pool
                     let start = performance.now();
                     let _outputs: Vec<_> = circs
                         .into_par_iter()
