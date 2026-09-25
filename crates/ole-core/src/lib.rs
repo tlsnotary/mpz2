@@ -180,38 +180,53 @@ mod tests {
         test_ole::<Gf2_128>();
     }
 
-    /// Verifies OLE correctness when receiver's ROT choice bits represent a
-    /// value >= p (the P256 field prime). Before the fix, `from_lsb0_iter`
-    /// would panic (ark-ff rejects out-of-range BigInt), and even with
-    /// reduction it would produce bits mismatched with the ROT choices.
+    /// Verifies OLE correctness when the receiver's ROT choice bits represent a
+    /// value >= p (the P256 field prime), driving the real [`Receiver::recv`]
+    /// path through the ROT. Reducing those bits to a field element and
+    /// re-deriving them via `iter_lsb0` yields bits mismatched with the ROT
+    /// choices, so the resulting shares would not multiply.
     #[test]
-    fn test_ole_p256_choices_exceed_prime() {
-        use rand::Rng as _;
+    fn test_ole_p256_receiver_choices_exceed_prime() {
+        let count = 1;
+        let mut rng = StdRng::seed_from_u64(0);
 
-        let mut rng = StdRng::seed_from_u64(42);
+        // All-ones except the low bit is `2^256 - 2 >= p` and is not
+        // bit-palindromic, so it also catches bit-order mistakes.
+        let mut choices = vec![true; count * P256::BIT_SIZE];
+        choices[0] = false;
 
-        // All-ones is 2^256 - 1, which is >= p for P256.
-        let choices_all_ones: Vec<bool> = vec![true; 256];
+        let mut ideal_rot = IdealROT::new(Block::random(&mut rng));
+        ideal_rot.set_receiver_choices(choices);
 
-        // Build sender masks and receiver correlation from random ROT keys,
-        // simulating what the ROT protocol would produce.
-        let sender_input: P256 = rng.random();
-        let masks_pairs: Array<[P256; 2], <P256 as Field>::BitSize> =
-            Array::from_fn(|_| [rng.random(), rng.random()]);
+        let rot_sender = AnySender::new(ideal_rot.clone());
+        let rot_receiver = AnyReceiver::new(ideal_rot);
 
-        // Receiver's ROT messages correspond to the original choice bits.
-        let receiver_masks: Array<P256, <P256 as Field>::BitSize> = Array::from_fn(|i| {
-            if choices_all_ones[i] {
-                masks_pairs[i][1]
-            } else {
-                masks_pairs[i][0]
-            }
-        });
+        let (mut sender, mut receiver) = (
+            Sender::<_, P256>::new(Block::random(&mut rng), rot_sender),
+            Receiver::<_, P256>::new(rot_receiver),
+        );
 
-        let (sender_share, corr) = OLEShare::new_ole_sender(sender_input, masks_pairs);
-        let receiver_share = OLEShare::new_ole_receiver(&choices_all_ones, receiver_masks, corr);
+        sender.alloc(count).unwrap();
+        receiver.alloc(count).unwrap();
 
-        assert_ole(sender_share, receiver_share);
+        sender.rot_mut().rot_mut().flush().unwrap();
+
+        let msg = sender.send().unwrap();
+        receiver.recv(msg).unwrap();
+
+        let ROLESenderOutput {
+            shares: sender_shares,
+            ..
+        } = sender.try_send_role(count).unwrap();
+        let ROLEReceiverOutput {
+            shares: receiver_shares,
+            ..
+        } = receiver.try_recv_role(count).unwrap();
+
+        sender_shares
+            .into_iter()
+            .zip(receiver_shares)
+            .for_each(|(s, r)| assert_ole(s, r));
     }
 
     fn test_ole<F: Field>()
