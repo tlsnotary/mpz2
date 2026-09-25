@@ -302,7 +302,9 @@ where
                 let keys = take(&mut buffer.keys);
 
                 // Only discard the buffer if it has no allocation outstanding,
-                // otherwise an allocation made during this flush would be lost.
+                // otherwise an allocation which the flush did
+                // not fulfill (e.g. the leader returned early)
+                // would be lost.
                 if buffer.count == 0 {
                     state.buffers.remove(&self.id);
                 }
