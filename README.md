@@ -18,16 +18,81 @@ This project is currently under active development and should not be used in pro
 
 ## Crates
 
-  - [`core`](./crates/core/) - Core cryptographic primitives.
-  - [`common`](./crates/common) - Common functionalities needed for modeling protocol execution, I/O, and multi-threading.
-  - [`fields`](./crates/fields/) - Finite-fields.
-  - [`circuits`](./crates/circuits/) - Boolean circuit DSL.
-  - [`ot`](./crates/ot) ([`core`](./crates/ot-core/)) - Oblivious transfer protocols.
-  - [`garble`](./crates/garble/) ([`core`](./crates/garble-core/)) - Boolean garbled circuit protocols.
-  - [`share-conversion`](./crates/share-conversion/) ([`core`](./crates/share-conversion-core/)) - Multiplicative-to-Additive and Additive-to-Multiplicative share conversion protocols for a variety of fields.
-  - [`cointoss`](./crates/cointoss/) ([`core`](./crates/cointoss-core/)) - 2-party cointoss protocol.
-  - [`matrix-transpose`](./crates/matrix-transpose/) - Bit-wise matrix transposition.
-  - [`clmul`](./crates/clmul/) - Carry-less multiplication.
+Many protocol crates follow a `-core` / high-level split: the `-core` crate contains
+the cryptographic internals without any I/O, while the parent crate adds async
+networking on top. See [Core vs IO](./DESIGN.md#core-vs-io) for rationale.
+
+### Primitives
+
+- [`clmul`](./crates/clmul/) - Carry-less multiplication.
+- [`matrix-transpose`](./crates/matrix-transpose/) - Bit-wise matrix transposition.
+
+### Foundation
+
+- [`mpz-core`](./crates/core/) - Core cryptographic primitives (AES, PRG, GGM tree, LPN, commitment).
+- [`mpz-common`](./crates/common/) - Protocol execution runtime, I/O, multiplexing, and threading. No cryptography.
+- [`mpz-fields`](./crates/fields/) - Finite-field arithmetic.
+
+### Circuits
+
+- [`mpz-circuits`](./crates/circuits/) ([`-core`](./crates/circuits-core/), [`-data`](./crates/circuits-data/)) - Boolean circuit DSL, builder, and pre-compiled circuits (AES, SHA-2, etc.).
+
+### Protocols
+
+- [`mpz-cointoss`](./crates/cointoss/) ([`-core`](./crates/cointoss-core/)) - 2-party coin-toss protocol.
+- [`mpz-ot`](./crates/ot/) ([`-core`](./crates/ot-core/)) - Oblivious transfer (Chou-Orlandi, KOS, Ferret).
+- [`mpz-ole`](./crates/ole/) ([`-core`](./crates/ole-core/)) - Oblivious linear evaluation.
+- [`mpz-share-conversion`](./crates/share-conversion/) ([`-core`](./crates/share-conversion-core/)) - Multiplicative-to-additive and additive-to-multiplicative share conversion.
+
+### Virtual Machine
+
+- [`mpz-memory-core`](./crates/memory-core/) - Memory abstraction for the MPC virtual machine.
+- [`mpz-vm-core`](./crates/vm-core/) - VM traits and interfaces (`Vm`, `Execute`).
+- [`mpz-ideal-vm`](./crates/ideal-vm/) - Ideal (plaintext) VM for testing.
+
+### Higher-level Protocols
+
+- [`mpz-garble`](./crates/garble/) ([`-core`](./crates/garble-core/)) - Half-gate garbled circuit protocols.
+- [`mpz-zk`](./crates/zk/) ([`-core`](./crates/zk-core/)) - QuickSilver zero-knowledge proofs.
+- [`mpz-hash`](./crates/hash/) - MPC-friendly hash functions (SHA-2, Blake3, Keccak) built on the circuit and VM layers.
+
+### Dependency Graph
+
+The `-core` suffix is omitted for brevity; see the crate list above for the
+full split. Arrows point from dependent to dependency.
+
+```mermaid
+graph LR
+    mpz-share-conversion --> mpz-ole
+    mpz-ole --> mpz-fields
+    mpz-ole --> mpz-ot
+    
+    mpz-garble --> mpz-ot
+    mpz-garble --> mpz-vm-core
+    mpz-garble --> mpz-circuits
+
+    mpz-hash --> mpz-vm-core
+    mpz-hash --> mpz-circuits
+
+    mpz-zk --> mpz-ot
+    mpz-zk --> mpz-vm-core
+    
+    
+    mpz-ot --> mpz-cointoss
+    mpz-ot --> mpz-core
+    mpz-ot --> mpz-common
+    mpz-cointoss --> mpz-core
+    mpz-cointoss --> mpz-common
+    mpz-vm-core --> mpz-circuits
+    mpz-vm-core --> mpz-memory-core
+    mpz-vm-core --> mpz-common
+    mpz-ideal-vm --> mpz-vm-core
+    mpz-memory-core --> mpz-core
+    mpz-circuits --> mpz-core
+    mpz-fields --> mpz-core
+    mpz-core --> clmul
+    mpz-core --> matrix-transpose
+```
 
 ## Running tests/benches on WASM
 
@@ -72,7 +137,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - [TLSNotary](https://github.com/tlsnotary)
 - [Primus (formerly "PADO")](https://github.com/primus-labs)
-
 
 ### Pronunciation
 
