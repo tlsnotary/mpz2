@@ -8,7 +8,7 @@ use crate::{
 
 use itybity::ToBits;
 use mpz_common::future::{MaybeDone, Sender as OutputSender, new_output};
-use mpz_core::{Block, prg::Prg};
+use mpz_core::{Block, aes::FIXED_KEY_AES, prg::Prg};
 
 use rand::{Rng as _, RngExt, SeedableRng, rng};
 
@@ -33,6 +33,7 @@ pub struct Sender<T: state::State = state::Initialized> {
     queue: VecDeque<Queued>,
     transfer_id: TransferId,
     delta: Block,
+    instance_id: Block,
     state: T,
 }
 
@@ -53,7 +54,9 @@ impl Sender<state::Initialized> {
     ///
     /// * `config` - Sender's configuration.
     /// * `delta` - Global COT correlation.
-    pub fn new(config: SenderConfig, delta: Block) -> Self {
+    /// * `instance_id` - Domain separator; must match the paired receiver and
+    ///   differ across instances that reuse `delta`.
+    pub fn new(config: SenderConfig, delta: Block, instance_id: Block) -> Self {
         Sender {
             config,
             // We need to extend SSP OTs for the consistency check.
@@ -63,6 +66,7 @@ impl Sender<state::Initialized> {
             transfer_id: TransferId::default(),
             queue: VecDeque::default(),
             delta,
+            instance_id,
             state: state::Initialized::default(),
         }
     }
@@ -73,14 +77,19 @@ impl Sender<state::Initialized> {
     ///
     /// * `seeds` - The rng seeds chosen during base OT
     pub fn setup(self, seeds: [Block; CSP]) -> Sender<state::Extension> {
+        let instance_id = self.instance_id;
         Sender {
             config: self.config,
             alloc: self.alloc,
             transfer_id: self.transfer_id,
             queue: self.queue,
             delta: self.delta,
+            instance_id,
             state: state::Extension {
-                rngs: seeds.into_iter().map(Prg::from_seed).collect(),
+                rngs: seeds
+                    .into_iter()
+                    .map(|seed| Prg::from_seed(FIXED_KEY_AES.tccr(instance_id, seed)))
+                    .collect(),
                 keys: Vec::default(),
                 extended: false,
                 unchecked_qs_trans: Vec::default(),

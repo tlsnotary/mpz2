@@ -40,12 +40,13 @@ impl<BaseOT> Receiver<BaseOT> {
     /// # Arguments
     ///
     /// * `config` - The Receiver's configuration.
+    /// * `instance_id` - Domain separator; must match the paired sender.
     /// * `base_ot` - Base OT.
-    pub fn new(config: ReceiverConfig, base_ot: BaseOT) -> Self {
+    pub fn new(config: ReceiverConfig, instance_id: Block, base_ot: BaseOT) -> Self {
         Self {
             state: State::Initialized {
                 base_ot,
-                receiver: Core::new(config),
+                receiver: Core::new(config, instance_id),
             },
         }
     }

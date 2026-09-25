@@ -40,12 +40,14 @@ impl<BaseOT> Sender<BaseOT> {
     ///
     /// * `config` - The Sender's configuration.
     /// * `delta` - Global COT correlation.
+    /// * `instance_id` - Domain separator; must match the paired receiver and
+    ///   differ across instances that reuse `delta`.
     /// * `base_ot` - Base OT.
-    pub fn new(config: SenderConfig, delta: Block, base_ot: BaseOT) -> Self {
+    pub fn new(config: SenderConfig, delta: Block, instance_id: Block, base_ot: BaseOT) -> Self {
         Self {
             state: State::Initialized {
                 base_ot,
-                sender: Core::new(config, delta),
+                sender: Core::new(config, delta, instance_id),
             },
         }
     }

@@ -31,8 +31,8 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0);
         let (base_sender, base_receiver) = ideal_ot();
         let delta = Block::random(&mut rng);
-        let sender = Sender::new(SenderConfig::default(), delta, base_receiver);
-        let receiver = Receiver::new(ReceiverConfig::default(), base_sender);
+        let sender = Sender::new(SenderConfig::default(), delta, Block::ZERO, base_receiver);
+        let receiver = Receiver::new(ReceiverConfig::default(), Block::ZERO, base_sender);
 
         test_rcot(sender, receiver, 128, 1).await;
     }
