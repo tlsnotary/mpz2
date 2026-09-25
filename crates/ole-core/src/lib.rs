@@ -133,10 +133,7 @@ where
             |(add, mul), (i, ((&delta, &u), &t))| {
                 let two_pow_i = F::two_pow(i as u32);
                 let delta = if delta { F::one() } else { F::zero() };
-                (
-                    add + two_pow_i * (delta * u + t),
-                    mul + two_pow_i * delta,
-                )
+                (add + two_pow_i * (delta * u + t), mul + two_pow_i * delta)
             },
         );
 
@@ -212,8 +209,7 @@ mod tests {
         });
 
         let (sender_share, corr) = OLEShare::new_ole_sender(sender_input, masks_pairs);
-        let receiver_share =
-            OLEShare::new_ole_receiver(&choices_all_ones, receiver_masks, corr);
+        let receiver_share = OLEShare::new_ole_receiver(&choices_all_ones, receiver_masks, corr);
 
         assert_ole(sender_share, receiver_share);
     }
