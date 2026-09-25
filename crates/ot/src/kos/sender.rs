@@ -41,11 +41,11 @@ impl<BaseOT> Sender<BaseOT> {
     /// * `config` - The Sender's configuration.
     /// * `delta` - Global COT correlation.
     /// * `base_ot` - Base OT.
-    pub fn new(config: SenderConfig, delta: Block, base_ot: BaseOT) -> Self {
+    pub fn new(config: SenderConfig, delta: Block, instance_id: Block, base_ot: BaseOT) -> Self {
         Self {
             state: State::Initialized {
                 base_ot,
-                sender: Core::new(config, delta),
+                sender: Core::new(config, delta, instance_id),
             },
         }
     }

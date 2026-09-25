@@ -41,11 +41,11 @@ impl<BaseOT> Receiver<BaseOT> {
     ///
     /// * `config` - The Receiver's configuration.
     /// * `base_ot` - Base OT.
-    pub fn new(config: ReceiverConfig, base_ot: BaseOT) -> Self {
+    pub fn new(config: ReceiverConfig, instance_id: Block, base_ot: BaseOT) -> Self {
         Self {
             state: State::Initialized {
                 base_ot,
-                receiver: Core::new(config),
+                receiver: Core::new(config, instance_id),
             },
         }
     }
