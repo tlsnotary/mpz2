@@ -1712,7 +1712,6 @@ name = "mpz-ole-core"
 version = "0.1.0-alpha.6"
 dependencies = [
  "hybrid-array",
- "itybity",
  "mpz-common",
  "mpz-core",
  "mpz-fields",
