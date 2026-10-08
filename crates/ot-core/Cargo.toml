@@ -34,10 +34,9 @@ derive_builder.workspace = true
 itybity.workspace = true
 opaque-debug.workspace = true
 cfg-if.workspace = true
-bytemuck = { workspace = true, features = ["derive"] }
 futures = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
-zerocopy = { workspace = true }
+zerocopy = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 rstest.workspace = true

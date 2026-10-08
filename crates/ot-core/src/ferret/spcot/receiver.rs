@@ -193,8 +193,8 @@ impl SPCOTReceiver {
                 w[idx] = w.iter().fold(*sum, |acc, &x| acc ^ x);
             });
 
-        self.transcript.update(Block::array_as_flattened_bytes(ms));
-        self.transcript.update(Block::as_flattened_bytes(sums));
+        self.transcript.update(ms.as_bytes());
+        self.transcript.update(sums.as_bytes());
         self.lengths.extend_from_slice(log2_lengths);
         self.indices.extend_from_slice(idxs);
         self.counter += len_sum as u128;

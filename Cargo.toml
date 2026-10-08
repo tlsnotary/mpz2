@@ -103,8 +103,7 @@ serde = "1.0"
 serde_arrays = "0.2"
 bincode = "1.3.3"
 bytes = "1"
-bytemuck = { version = "1", features = ["derive"] }
-zerocopy = "0.8"
+zerocopy = { version = "0.8", features = ["derive"] }
 serio = { version = "0.2" }
 
 # testing

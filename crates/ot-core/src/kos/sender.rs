@@ -11,6 +11,7 @@ use mpz_common::future::{MaybeDone, Sender as OutputSender, new_output};
 use mpz_core::{Block, prg::Prg};
 
 use rand::{Rng as _, RngExt, SeedableRng, rng};
+use zerocopy::FromBytes;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "rayon")] {
@@ -166,16 +167,16 @@ impl Sender<state::Extension> {
             .zip(qs.chunks_exact(qs.len() / NROWS))
         {
             let new_blocks: &[Block] =
-                bytemuck::try_cast_slice(new_row).expect("row length is a multiple of Block size");
+                <[Block]>::ref_from_bytes(new_row).expect("row length is a multiple of Block size");
             existing_row.extend_from_slice(new_blocks);
         }
 
         matrix_transpose::transpose_bits(&mut qs, NROWS).expect("matrix is rectangular");
 
         let q_blocks: &[Block] =
-            bytemuck::try_cast_slice(&qs).expect("qs length is a multiple of Block size");
+            <[Block]>::ref_from_bytes(&qs).expect("qs length is a multiple of Block size");
 
-        self.state.unchecked_qs_trans.extend(q_blocks.iter());
+        self.state.unchecked_qs_trans.extend_from_slice(q_blocks);
 
         self.alloc = self.alloc.saturating_sub(count);
 
