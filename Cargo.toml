@@ -58,13 +58,11 @@ mpz-fields = { path = "crates/fields" }
 mpz-circuits = { path = "crates/circuits" }
 mpz-circuits-core = { path = "crates/circuits-core" }
 mpz-circuits-data = { path = "crates/circuits-data" }
-mpz-cointoss = { path = "crates/cointoss" }
 mpz-cointoss-core = { path = "crates/cointoss-core" }
 mpz-ot = { path = "crates/ot" }
 mpz-ot-core = { path = "crates/ot-core" }
 mpz-garble = { path = "crates/garble" }
 mpz-garble-core = { path = "crates/garble-core" }
-mpz-hash = { path = "crates/hash" }
 mpz-ideal-vm = { path = "crates/ideal-vm" }
 mpz-share-conversion-core = { path = "crates/share-conversion-core" }
 mpz-ole = { path = "crates/ole" }
@@ -87,9 +85,7 @@ cipher = "0.5"
 sha2 = "0.11"
 blake3 = "1.8"
 aes = "0.9"
-ctr = "0.10"
 curve25519-dalek = "5.0.0-pre.6"
-p256 = "0.13"
 ghash_rc = { package = "ghash", version = "0.6" }
 crypto-bigint = { version = "0.7", default-features = false, features = ["rand_core", "hybrid-array"] }
 keccak = "0.2"
@@ -134,10 +130,8 @@ once_cell = "1"
 hybrid-array = "0.4"
 typenum = "1"
 itybity = "0.3"
-enum-try-as-inner = "0.1.0"
 bitvec = "1.0"
 hashbrown = "0.17"
-crossbeam-channel = "0.5"
 crossbeam-deque = "0.8"
 crossbeam-utils = "0.8"
 async-task = "4"

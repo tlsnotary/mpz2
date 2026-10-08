@@ -3,6 +3,9 @@ name = "mpz-wasm-bench"
 version = "0.1.0-alpha.6"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

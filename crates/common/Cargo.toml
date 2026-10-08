@@ -3,6 +3,9 @@ name = "mpz-common"
 version = "0.1.0-alpha.6"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [features]
 default = []
 executor = []
@@ -20,10 +23,8 @@ thiserror.workspace = true
 serio.workspace = true
 serde = { workspace = true, features = ["derive"] }
 pollster.workspace = true
-cfg-if.workspace = true
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true }
-crossbeam-channel = { workspace = true }
 crossbeam-deque = { workspace = true }
 crossbeam-utils = { workspace = true }
 async-task = { workspace = true }
