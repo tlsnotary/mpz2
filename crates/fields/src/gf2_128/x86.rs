@@ -110,6 +110,29 @@ pub(super) fn inner_product(a: &[Gf2_128], b: &[Gf2_128]) -> u128 {
     }
 }
 
+/// `Σ aᵢ · bᵢ · cᵢ`. One reduction per iteration for the `aᵢ·bᵢ`
+/// intermediate (needed as a 128-bit operand for the second CLMUL), then
+/// a single post-loop reduction on the accumulated `(aᵢbᵢ)·cᵢ` carry-less
+/// products — vs. the naive fold which pays two reductions per iteration.
+#[inline(always)]
+pub(super) fn double_inner_product(a: &[Gf2_128], b: &[Gf2_128], c: &[Gf2_128]) -> u128 {
+    // SAFETY: see `mul`.
+    unsafe {
+        let mut acc_lo = _mm_setzero_si128();
+        let mut acc_hi = _mm_setzero_si128();
+
+        for ((x, y), z) in a.iter().zip(b.iter()).zip(c.iter()) {
+            let (xy_lo, xy_hi) = clmul128(load(x.0), load(y.0));
+            let xy = reduce128(xy_lo, xy_hi);
+            let (p_lo, p_hi) = clmul128(xy, load(z.0));
+            acc_lo = _mm_xor_si128(acc_lo, p_lo);
+            acc_hi = _mm_xor_si128(acc_hi, p_hi);
+        }
+
+        extract(reduce128(acc_lo, acc_hi))
+    }
+}
+
 /// 256-bit carry-less square of a 128-bit input (two 64×64 CLMULs). In
 /// characteristic 2, all cross terms vanish — we only need `a_lo²`
 /// (for bits [0..128]) and `a_hi²` (for bits [128..256]).

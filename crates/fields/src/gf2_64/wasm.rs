@@ -45,6 +45,24 @@ pub(super) fn inner_product(a: &[Gf2_64], b: &[Gf2_64]) -> u64 {
     reduce64(lo, hi)
 }
 
+/// `Σ aᵢ · bᵢ · cᵢ`. Per iteration: one full `mul(aᵢ, bᵢ)` to get the
+/// 64-bit `xy` intermediate, then accumulate the raw v128 partial for
+/// `(xy · cᵢ)` — deferring the rev64+shift recovery and the final
+/// reduction to one post-loop pass.
+#[inline]
+pub(super) fn double_inner_product(a: &[Gf2_64], b: &[Gf2_64], c: &[Gf2_64]) -> u64 {
+    let mut acc = u64x2_splat(0);
+    for ((x, y), z) in a.iter().zip(b.iter()).zip(c.iter()) {
+        let (xy_lo, xy_hi) = bmul64_full(x.0, y.0);
+        let xy = reduce64(xy_lo, xy_hi);
+        let v = bmul64_lo_v128(u64x2(xy, rev64(xy)), u64x2(z.0, rev64(z.0)));
+        acc = v128_xor(acc, v);
+    }
+    let lo = u64x2_extract_lane::<0>(acc);
+    let hi = rev64(u64x2_extract_lane::<1>(acc)) >> 1;
+    reduce64(lo, hi)
+}
+
 #[inline]
 pub(super) fn inverse(a: u64) -> u64 {
     let mut y = square(a);

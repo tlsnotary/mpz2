@@ -12,7 +12,7 @@ use itybity::{BitLength, FromBitIterator, GetBit, Lsb0, Msb0};
 use rand::distr::{Distribution, StandardUniform};
 use serde::{Deserialize, Serialize};
 
-use crate::{Field, FieldError};
+use crate::{ExtensionField, Field, FieldError, gf2::Gf2};
 
 /// An element of GF(2^64), represented as a `u64`.
 ///
@@ -143,8 +143,50 @@ impl Field for Gf2_64 {
     }
 
     #[inline]
+    fn double_inner_product_chunk(a: &[Self], b: &[Self], c: &[Self]) -> Self {
+        Gf2_64(gf64_double_inner_product(a, b, c))
+    }
+
+    #[inline]
     fn square(self) -> Self {
         Gf2_64(gf64_square(self.0))
+    }
+}
+
+/// Monomial basis `[α^0, α^1, …, α^63]` of `GF(2^64)` over `GF(2)`.
+static MONOMIAL_BASIS_GF2_64: [Gf2_64; 64] = {
+    let mut out = [Gf2_64(0); 64];
+    let mut i = 0;
+    while i < 64 {
+        out[i] = Gf2_64(1u64 << i);
+        i += 1;
+    }
+    out
+};
+
+impl ExtensionField<Gf2> for Gf2_64 {
+    const MONOMIAL_BASIS: &'static [Self] = &MONOMIAL_BASIS_GF2_64;
+
+    #[inline]
+    fn embed(base: Gf2) -> Self {
+        Gf2_64(u64::from(base.0))
+    }
+
+    /// Constant-time masked XOR — no field multiplications and no
+    /// data-dependent branches.
+    #[inline]
+    fn inner_product_subfield(values: &[Gf2], challenges: &[Self]) -> Self {
+        assert_eq!(
+            values.len(),
+            challenges.len(),
+            "inner_product_subfield: slice length mismatch",
+        );
+        let mut acc = 0u64;
+        for (v, c) in values.iter().zip(challenges.iter()) {
+            let mask = (v.0 as u64).wrapping_neg();
+            acc ^= c.0 & mask;
+        }
+        Gf2_64(acc)
     }
 }
 
@@ -174,6 +216,11 @@ fn gf64_inner_product(a: &[Gf2_64], b: &[Gf2_64]) -> u64 {
 }
 
 #[inline(always)]
+fn gf64_double_inner_product(a: &[Gf2_64], b: &[Gf2_64], c: &[Gf2_64]) -> u64 {
+    backend::double_inner_product(a, b, c)
+}
+
+#[inline(always)]
 fn gf64_inverse(a: u64) -> u64 {
     backend::inverse(a)
 }
@@ -186,11 +233,24 @@ fn gf64_square(a: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{test_field_axioms_random, test_field_inner_product, test_field_square};
+    use crate::tests::{
+        test_extension_field_subfield_inner_product, test_field_axioms_random,
+        test_field_double_inner_product, test_field_inner_product, test_field_square,
+    };
 
     #[test]
     fn test_inner_product() {
         test_field_inner_product::<Gf2_64>();
+    }
+
+    #[test]
+    fn test_double_inner_product() {
+        test_field_double_inner_product::<Gf2_64>();
+    }
+
+    #[test]
+    fn test_subfield_inner_product() {
+        test_extension_field_subfield_inner_product::<Gf2_64, Gf2>();
     }
 
     #[test]

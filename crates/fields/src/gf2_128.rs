@@ -11,7 +11,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 
 use mpz_core::Block;
 
-use crate::{Field, FieldError};
+use crate::{ExtensionField, Field, FieldError, gf2::Gf2};
 
 /// A type for holding field elements of Gf(2^128).
 #[derive(
@@ -51,13 +51,13 @@ impl Gf2_128 {
 
 impl From<Gf2_128> for Block {
     fn from(value: Gf2_128) -> Self {
-        Block::new(value.0.to_be_bytes())
+        Block::new(value.0.to_le_bytes())
     }
 }
 
 impl From<Block> for Gf2_128 {
     fn from(block: Block) -> Self {
-        Gf2_128(u128::from_be_bytes(block.to_bytes()))
+        Gf2_128(u128::from_le_bytes(block.to_bytes()))
     }
 }
 
@@ -67,7 +67,7 @@ impl TryFrom<Array<u8, U16>> for Gf2_128 {
     fn try_from(value: Array<u8, U16>) -> Result<Self, Self::Error> {
         let inner: [u8; 16] = value.into();
 
-        Ok(Gf2_128(u128::from_be_bytes(inner)))
+        Ok(Gf2_128(u128::from_le_bytes(inner)))
     }
 }
 
@@ -163,8 +163,55 @@ impl Field for Gf2_128 {
     }
 
     #[inline]
+    fn double_inner_product_chunk(a: &[Self], b: &[Self], c: &[Self]) -> Self {
+        Gf2_128(gf128_double_inner_product(a, b, c))
+    }
+
+    #[inline]
     fn square(self) -> Self {
         Gf2_128(gf128_square(self.0))
+    }
+}
+
+/// Monomial basis `[α^0, α^1, …, α^127]` of `GF(2^128)` over `GF(2)`.
+static MONOMIAL_BASIS_GF2_128: [Gf2_128; 128] = {
+    let mut out = [Gf2_128::new(0); 128];
+    let mut i = 0;
+    while i < 128 {
+        out[i] = Gf2_128::new(1u128 << i);
+        i += 1;
+    }
+    out
+};
+
+impl ExtensionField<Gf2> for Gf2_128 {
+    const MONOMIAL_BASIS: &'static [Self] = &MONOMIAL_BASIS_GF2_128;
+
+    #[inline]
+    fn embed(base: Gf2) -> Self {
+        // `Gf2(false) -> 0`, `Gf2(true) -> 1`.
+        Gf2_128::new(u128::from(base.0))
+    }
+
+    /// Constant-time masked XOR: each term reduces to
+    /// `acc ^= c & mask_from_bit(v)` — no field multiplications and
+    /// no data-dependent branches.
+    #[inline]
+    fn inner_product_subfield(values: &[Gf2], challenges: &[Self]) -> Self {
+        assert_eq!(
+            values.len(),
+            challenges.len(),
+            "inner_product_subfield: slice length mismatch",
+        );
+        let mut acc = 0u128;
+        for (v, c) in values.iter().zip(challenges.iter()) {
+            // `v.0 as u128` is 0 or 1; `wrapping_neg()` gives 0 or
+            // `u128::MAX`. ANDing with `c.to_inner()` zeroes out the
+            // term when `v == Gf2(0)` without branching.
+            let mask = (v.0 as u128).wrapping_neg();
+            acc ^= c.to_inner() & mask;
+        }
+        Gf2_128::new(acc)
     }
 }
 
@@ -191,6 +238,11 @@ fn gf128_mul(a: u128, b: u128) -> u128 {
 #[inline(always)]
 fn gf128_inner_product(a: &[Gf2_128], b: &[Gf2_128]) -> u128 {
     backend::inner_product(a, b)
+}
+
+#[inline(always)]
+fn gf128_double_inner_product(a: &[Gf2_128], b: &[Gf2_128], c: &[Gf2_128]) -> u128 {
+    backend::double_inner_product(a, b, c)
 }
 
 #[inline(always)]
@@ -234,10 +286,12 @@ mod tests {
     use super::Gf2_128;
     use crate::{
         Field,
+        gf2::Gf2,
         tests::{
-            test_field_axioms_random, test_field_basic, test_field_bit_ops_lsb0,
-            test_field_bit_ops_msb0, test_field_compute_product_repeated, test_field_inner_product,
-            test_field_square,
+            test_extension_field_subfield_inner_product, test_field_axioms_random,
+            test_field_basic, test_field_bit_ops_lsb0, test_field_bit_ops_msb0,
+            test_field_compute_product_repeated, test_field_double_inner_product,
+            test_field_inner_product, test_field_square,
         },
     };
     #[test]
@@ -258,6 +312,11 @@ mod tests {
     }
 
     #[test]
+    fn test_gf2_128_double_inner_product() {
+        test_field_double_inner_product::<Gf2_128>();
+    }
+
+    #[test]
     fn test_gf2_128_axioms_random() {
         test_field_axioms_random::<Gf2_128>();
     }
@@ -271,6 +330,11 @@ mod tests {
     fn test_gf2_128_bit_ops() {
         test_field_bit_ops_lsb0::<Gf2_128>();
         test_field_bit_ops_msb0::<Gf2_128>();
+    }
+
+    #[test]
+    fn test_gf2_128_subfield_inner_product() {
+        test_extension_field_subfield_inner_product::<Gf2_128, Gf2>();
     }
 
     #[test]

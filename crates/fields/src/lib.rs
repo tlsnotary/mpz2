@@ -156,6 +156,110 @@ pub trait Field:
             .zip(b.iter())
             .fold(Self::zero(), |acc, (x, y)| acc + *x * *y)
     }
+
+    /// Compute the triple inner product `Σ aᵢ · bᵢ · cᵢ` of three slices
+    /// of field elements.
+    ///
+    /// Same chunking/parallel dispatch as [`Self::inner_product`] — the
+    /// kernel does a single reduction per chunk (vs. one per iteration
+    /// for a naive fold through `Mul`), amortising reduction cost across
+    /// the whole chunk.
+    ///
+    /// Concrete types override [`Self::double_inner_product_chunk`] (not
+    /// this method) to provide an accelerated single-chunk
+    /// implementation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the three slices do not all have the same length.
+    #[inline]
+    fn double_inner_product(a: &[Self], b: &[Self], c: &[Self]) -> Self {
+        assert_eq!(
+            a.len(),
+            b.len(),
+            "double_inner_product: slice length mismatch"
+        );
+        assert_eq!(
+            a.len(),
+            c.len(),
+            "double_inner_product: slice length mismatch"
+        );
+
+        cfg_select! {
+            feature = "rayon" => {
+                const TARGET_CHUNK_BYTES: usize = 64 * 1024;
+                let chunk = (TARGET_CHUNK_BYTES / Self::BYTE_SIZE).max(1);
+                if a.len() >= chunk * 2 {
+                    use rayon::prelude::*;
+                    a.par_chunks(chunk)
+                        .zip(b.par_chunks(chunk))
+                        .zip(c.par_chunks(chunk))
+                        .map(|((ac, bc), cc)| Self::double_inner_product_chunk(ac, bc, cc))
+                        .reduce(Self::zero, |x, y| x + y)
+                } else {
+                    Self::double_inner_product_chunk(a, b, c)
+                }
+            }
+            _ => Self::double_inner_product_chunk(a, b, c),
+        }
+    }
+
+    /// Sequential triple-inner-product kernel. Concrete types override
+    /// this with their optimised single-threaded implementation;
+    /// [`Self::double_inner_product`] calls it once (sequential) or once
+    /// per chunk (parallel).
+    #[doc(hidden)]
+    #[inline]
+    fn double_inner_product_chunk(a: &[Self], b: &[Self], c: &[Self]) -> Self {
+        a.iter()
+            .zip(b.iter())
+            .zip(c.iter())
+            .fold(Self::zero(), |acc, ((x, y), z)| acc + *x * *y * *z)
+    }
+}
+
+/// A field `Self` that is an extension of the base field `B`.
+///
+/// Implementors view `Self` as a `Self::BIT_SIZE / B::BIT_SIZE`-dimensional
+/// vector space over `B`, with a fixed monomial basis available for
+/// "pack `n` subfield values into one extension element" operations
+/// (VOPE masks, random linear compressions of subfield tuples, …).
+pub trait ExtensionField<B: Field>: Field {
+    /// The monomial basis `[α^0, α^1, …, α^(d-1)]`, where `d` is the
+    /// extension degree `Self::BIT_SIZE / B::BIT_SIZE`.
+    ///
+    /// The canonical subfield injection `B^d → Self` is
+    /// [`Self::inner_product_subfield`] with `challenges = MONOMIAL_BASIS`.
+    const MONOMIAL_BASIS: &'static [Self];
+
+    /// Embed a base-field element into the extension field.
+    fn embed(base: B) -> Self;
+
+    /// `Σ values[i] · challenges[i]` with base-field values lifted
+    /// into `Self` before multiplication. Use
+    /// [`Self::MONOMIAL_BASIS`] as `challenges` for the canonical
+    /// subfield injection, or a verifier-sampled slice for a random
+    /// linear compression of a subfield tuple.
+    ///
+    /// The default uses `embed` + field multiplication. Concrete
+    /// types can override for speed (e.g. `ExtensionField<Gf2>` can
+    /// reduce each term to a conditional XOR).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the two slices have different lengths.
+    #[inline]
+    fn inner_product_subfield(values: &[B], challenges: &[Self]) -> Self {
+        assert_eq!(
+            values.len(),
+            challenges.len(),
+            "inner_product_subfield: slice length mismatch",
+        );
+        values
+            .iter()
+            .zip(challenges.iter())
+            .fold(Self::zero(), |acc, (v, c)| acc + Self::embed(*v) * *c)
+    }
 }
 
 /// Error type for finite fields.
@@ -302,6 +406,68 @@ mod tests {
 
             assert_eq!(T::inner_product(&a, &b), expected, "len={len}");
         }
+    }
+
+    pub(crate) fn test_field_double_inner_product<T: Field>() {
+        let mut rng = Prg::from_seed(Block::ZERO);
+
+        // Empty → zero.
+        assert_eq!(T::double_inner_product(&[], &[], &[]), T::zero());
+
+        // Length 1 → a · b · c.
+        let a0 = T::rand(&mut rng);
+        let b0 = T::rand(&mut rng);
+        let c0 = T::rand(&mut rng);
+        assert_eq!(T::double_inner_product(&[a0], &[b0], &[c0]), a0 * b0 * c0);
+
+        for &len in &[17usize, 1024, 20_000] {
+            let a: Vec<T> = (0..len).map(|_| T::rand(&mut rng)).collect();
+            let b: Vec<T> = (0..len).map(|_| T::rand(&mut rng)).collect();
+            let c: Vec<T> = (0..len).map(|_| T::rand(&mut rng)).collect();
+
+            let expected = a
+                .iter()
+                .zip(b.iter())
+                .zip(c.iter())
+                .fold(T::zero(), |acc, ((x, y), z)| acc + *x * *y * *z);
+
+            assert_eq!(T::double_inner_product(&a, &b, &c), expected, "len={len}");
+        }
+    }
+
+    pub(crate) fn test_extension_field_subfield_inner_product<F, B>()
+    where
+        F: super::ExtensionField<B>,
+        B: Field,
+    {
+        let mut rng = Prg::from_seed(Block::ZERO);
+
+        // Empty → zero.
+        assert_eq!(F::inner_product_subfield(&[], &[]), F::zero());
+
+        // Across a range of lengths, the optimized impl must match the
+        // semantics: embed each subfield value into `F`, then do a
+        // regular extension-field inner product.
+        for &len in &[1usize, 3, F::BIT_SIZE, 17, 1024] {
+            let values: Vec<B> = (0..len).map(|_| B::rand(&mut rng)).collect();
+            let challenges: Vec<F> = (0..len).map(|_| F::rand(&mut rng)).collect();
+
+            let embedded: Vec<F> = values.iter().map(|v| F::embed(*v)).collect();
+            let expected = F::inner_product(&embedded, &challenges);
+            let got = F::inner_product_subfield(&values, &challenges);
+            assert_eq!(got, expected, "len={len}");
+        }
+
+        // Sanity: injection via the monomial basis recovers the
+        // subfield bits as the low-order coefficients of the result.
+        // Well-defined whenever `B::BIT_SIZE * d == F::BIT_SIZE`.
+        let one = B::one();
+        let zero = B::zero();
+        let d = F::MONOMIAL_BASIS.len();
+        let mut values = vec![zero; d];
+        values[0] = one;
+        let r = F::inner_product_subfield(&values, F::MONOMIAL_BASIS);
+        assert_eq!(r, F::embed(one), "monomial basis at index 0 == embed(one)");
     }
 
     pub(crate) fn test_field_bit_ops_lsb0<T: Field>() {

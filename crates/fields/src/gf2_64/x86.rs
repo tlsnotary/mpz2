@@ -81,6 +81,29 @@ pub(super) fn inner_product(a: &[Gf2_64], b: &[Gf2_64]) -> u64 {
     }
 }
 
+/// `Σ aᵢ · bᵢ · cᵢ`. One reduction per iteration for the `aᵢ·bᵢ`
+/// intermediate, one post-loop reduction on the accumulated
+/// `(aᵢbᵢ)·cᵢ` carry-less products.
+#[inline(always)]
+pub(super) fn double_inner_product(a: &[Gf2_64], b: &[Gf2_64], c: &[Gf2_64]) -> u64 {
+    // SAFETY: see `mul`.
+    unsafe {
+        let mut acc = _mm_setzero_si128();
+
+        for ((x, y), z) in a.iter().zip(b.iter()).zip(c.iter()) {
+            let a_vec = _mm_set_epi64x(0, x.0 as i64);
+            let b_vec = _mm_set_epi64x(0, y.0 as i64);
+            let xy_raw = _mm_clmulepi64_si128(a_vec, b_vec, 0x00);
+            let xy = reduce64(xy_raw);
+            let c_vec = _mm_set_epi64x(0, z.0 as i64);
+            let prod = _mm_clmulepi64_si128(xy, c_vec, 0x00);
+            acc = _mm_xor_si128(acc, prod);
+        }
+
+        _mm_cvtsi128_si64(reduce64(acc)) as u64
+    }
+}
+
 /// Reduce a 128-bit polynomial (in the low/high halves of `prod`) modulo
 /// p(x) = x⁶⁴ + x⁴ + x³ + x + 1.
 #[inline(always)]

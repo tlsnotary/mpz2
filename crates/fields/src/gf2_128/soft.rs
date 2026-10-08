@@ -54,6 +54,23 @@ pub(super) fn inner_product(a: &[Gf2_128], b: &[Gf2_128]) -> u128 {
     reduce128(acc_lo, acc_hi)
 }
 
+/// `Σ aᵢ · bᵢ · cᵢ`. One reduction per iteration for the `aᵢ·bᵢ`
+/// intermediate, one post-loop reduction on the accumulated
+/// `(aᵢbᵢ)·cᵢ` carry-less products.
+#[inline]
+pub(super) fn double_inner_product(a: &[Gf2_128], b: &[Gf2_128], c: &[Gf2_128]) -> u128 {
+    let mut acc_lo = 0u128;
+    let mut acc_hi = 0u128;
+    for ((x, y), z) in a.iter().zip(b.iter()).zip(c.iter()) {
+        let (xy_lo, xy_hi) = bmul128_full(x.0, y.0);
+        let xy = reduce128(xy_lo, xy_hi);
+        let (p_lo, p_hi) = bmul128_full(xy, z.0);
+        acc_lo ^= p_lo;
+        acc_hi ^= p_hi;
+    }
+    reduce128(acc_lo, acc_hi)
+}
+
 /// Reduce a 256-bit polynomial `hi·2¹²⁸ + lo` modulo
 /// p(x) = x¹²⁸ + x⁷ + x² + x + 1 (so `x¹²⁸ ≡ R = x⁷ + x² + x + 1`).
 ///

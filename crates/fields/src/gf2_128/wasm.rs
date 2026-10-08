@@ -79,6 +79,48 @@ pub(super) fn inner_product(a: &[Gf2_128], b: &[Gf2_128]) -> u128 {
     reduce128(lo, hi)
 }
 
+/// `Σ aᵢ · bᵢ · cᵢ`. Per iteration: one full `mul(aᵢ, bᵢ)` (bmul128_full +
+/// reduce) to get the 128-bit `xy` intermediate, then accumulate the three
+/// `(xy · cᵢ)` Karatsuba partials in raw v128 form — deferring the
+/// rev64+shift recovery and the final reduction to one post-loop pass.
+#[inline]
+pub(super) fn double_inner_product(a: &[Gf2_128], b: &[Gf2_128], c: &[Gf2_128]) -> u128 {
+    let mut acc00 = u64x2_splat(0);
+    let mut acc11 = u64x2_splat(0);
+    let mut acc_mid = u64x2_splat(0);
+
+    for ((x, y), z) in a.iter().zip(b.iter()).zip(c.iter()) {
+        let (xy_lo, xy_hi) = bmul128_full(x.0, y.0);
+        let xy = reduce128(xy_lo, xy_hi);
+
+        let a_lo = xy as u64;
+        let a_hi = (xy >> 64) as u64;
+        let b_lo = z.0 as u64;
+        let b_hi = (z.0 >> 64) as u64;
+
+        let p00 = bmul64_raw(a_lo, b_lo);
+        let p11 = bmul64_raw(a_hi, b_hi);
+        let p01 = bmul64_raw(a_lo, b_hi);
+        let p10 = bmul64_raw(a_hi, b_lo);
+
+        acc00 = v128_xor(acc00, p00);
+        acc11 = v128_xor(acc11, p11);
+        acc_mid = v128_xor(acc_mid, v128_xor(p01, p10));
+    }
+
+    let (p00_lo, p00_hi) = recover_raw(acc00);
+    let (p11_lo, p11_hi) = recover_raw(acc11);
+    let (mid_lo, mid_hi) = recover_raw(acc_mid);
+
+    let p00 = ((p00_hi as u128) << 64) | (p00_lo as u128);
+    let p11 = ((p11_hi as u128) << 64) | (p11_lo as u128);
+
+    let lo = p00 ^ ((mid_lo as u128) << 64);
+    let hi = p11 ^ (mid_hi as u128);
+
+    reduce128(lo, hi)
+}
+
 #[inline]
 pub(super) fn inverse(a: u128) -> u128 {
     let mut y = square(a);
