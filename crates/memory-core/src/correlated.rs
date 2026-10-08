@@ -64,7 +64,7 @@ pub use macs::{Mac, MacStore, MacStoreError};
 use mpz_core::Block;
 
 use blake3::Hasher;
-use rand::{CryptoRng, Rng, distr::StandardUniform, prelude::Distribution};
+use rand::{CryptoRng, Rng, RngExt, distr::StandardUniform, prelude::Distribution};
 use serde::{Deserialize, Serialize};
 
 /// Block for public 0 MAC.

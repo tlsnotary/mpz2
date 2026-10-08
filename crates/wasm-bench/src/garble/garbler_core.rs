@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 use mpz_circuits::AES128;
 use mpz_garble_core::{Garbler, Key};
 use mpz_memory_core::correlated::Delta;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 /// Shared benchmark state, initialized once.
 struct BenchState {

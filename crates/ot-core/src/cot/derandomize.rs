@@ -337,7 +337,7 @@ impl DerandCOTReceiverError {
 #[cfg(test)]
 mod tests {
     use mpz_common::future::Output;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use crate::{ideal::rcot::IdealRCOT, test::assert_cot};
 

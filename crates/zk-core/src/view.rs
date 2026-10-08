@@ -273,8 +273,8 @@ impl View {
     pub(crate) fn complete_flush(&mut self, view: FlushView) {
         // We don't allow outputs to be explicitely committed, only inputs.
         self.input.complete |= &view.commit;
-        // Since the verifier learned the plaintext of the proven ranges, those ranges
-        // are now decoded.
+        // Since the verifier learned the plaintext of the proven ranges, those
+        // ranges are now decoded.
         self.decode.complete |= &view.prove;
 
         self.flush.clear();

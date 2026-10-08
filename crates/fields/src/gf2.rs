@@ -4,7 +4,10 @@ use std::ops::{Add, Mul, Neg, Sub};
 
 use hybrid_array::{Array, typenum::U1};
 use itybity::{BitLength, FromBitIterator, GetBit, Lsb0, Msb0};
-use rand::distr::{Distribution, StandardUniform};
+use rand::{
+    RngExt,
+    distr::{Distribution, StandardUniform},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{Field, FieldError};

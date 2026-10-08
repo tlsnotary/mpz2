@@ -1,7 +1,10 @@
 [package]
 name = "mpz-ole-core"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2024"
+
+[lints]
+workspace = true
 
 [lib]
 name = "mpz_ole_core"
@@ -12,7 +15,6 @@ test-utils = []
 
 [dependencies]
 rand.workspace = true
-itybity.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 hybrid-array = { workspace = true, features = ["serde"] }

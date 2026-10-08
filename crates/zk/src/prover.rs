@@ -160,12 +160,12 @@ where
             }
 
             let outputs = ctx
-                .map(
-                    tasks,
-                    async move |ctx, (mut execute, output)| {
+                .map(tasks, move |ctx, (mut execute, output)| {
+                    Box::pin(async move {
                         let mut iter = execute.iter();
                         loop {
-                            // Stream the `adjust` bits to avoid buffering them in memory.
+                            // Stream the `adjust` bits to avoid buffering them
+                            // in memory.
                             let adjust: BitVec = BitVec::from_iter(iter.by_ref().take(8000));
 
                             if !adjust.is_empty() {
@@ -178,9 +178,8 @@ where
                         let output_macs = execute.finish().map_err(VmError::execute)?;
 
                         Ok((output, output_macs))
-                    },
-                    |(execute, _)| execute.and_count(),
-                )
+                    })
+                })
                 .await
                 .map_err(VmError::execute)?
                 .into_iter()

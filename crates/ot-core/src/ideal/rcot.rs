@@ -8,7 +8,7 @@ use std::mem;
 
 use mpz_common::future::{MaybeDone, Sender, new_output};
 use mpz_core::Block;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 

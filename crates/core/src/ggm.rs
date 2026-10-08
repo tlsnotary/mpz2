@@ -94,7 +94,8 @@ impl<'a> GgmTree<'a> {
             layer[offset + select as usize] = Block::ZERO;
             layer[offset + !select as usize] = Block::ZERO;
 
-            // If `select` is a left node, we fold all the right nodes and vice versa.
+            // If `select` is a left node, we fold all the right nodes and vice
+            // versa.
             let value = layer
                 .iter()
                 .skip(!select as usize)
@@ -164,7 +165,7 @@ impl<'a> GgmTree<'a> {
             let mut left = Block::ZERO;
             let mut right = Block::ZERO;
 
-            for nodes in layer.chunks_exact(2) {
+            for nodes in layer.as_chunks::<2>().0 {
                 left ^= nodes[0];
                 right ^= nodes[1];
             }

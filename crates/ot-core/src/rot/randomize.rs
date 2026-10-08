@@ -196,7 +196,7 @@ fn randomize_receiver(output: RCOTReceiverOutput<bool, Block>) -> ROTReceiverOut
 #[cfg(test)]
 mod tests {
     use mpz_common::future::Output;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use super::*;
 

@@ -37,10 +37,7 @@ pub(super) fn inner_product(a: &[Gf2_64], b: &[Gf2_64]) -> u64 {
     // with XOR accumulation and can be deferred to the end.
     let mut acc = u64x2_splat(0);
     for (x, y) in a.iter().zip(b.iter()) {
-        let v = bmul64_lo_v128(
-            u64x2(x.0, rev64(x.0)),
-            u64x2(y.0, rev64(y.0)),
-        );
+        let v = bmul64_lo_v128(u64x2(x.0, rev64(x.0)), u64x2(y.0, rev64(y.0)));
         acc = v128_xor(acc, v);
     }
     let lo = u64x2_extract_lane::<0>(acc);

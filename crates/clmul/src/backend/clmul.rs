@@ -127,7 +127,7 @@ impl ClmulX86 {
 #[cfg(test)]
 mod tests {
     use super::ClmulX86;
-    use rand::Rng;
+    use rand::RngExt;
     use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
     use std::arch::x86_64::*;
 

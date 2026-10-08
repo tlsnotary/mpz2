@@ -1,12 +1,12 @@
 //! Implement AES-based PRG.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::Infallible};
 
 use crate::{Block, aes::AesEncryptor};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rand_core::{
-    CryptoRng, RngCore, SeedableRng,
-    block::{BlockRng, BlockRngCore},
+    SeedableRng, TryCryptoRng, TryRng,
+    block::{BlockRng, Generator},
 };
 
 /// Struct of PRG Core
@@ -19,13 +19,12 @@ struct PrgCore {
     counter: u64,
 }
 
-impl BlockRngCore for PrgCore {
-    type Item = u32;
-    type Results = [u32; 4 * AesEncryptor::AES_BLOCK_COUNT];
+impl Generator for PrgCore {
+    type Output = [u32; 4 * AesEncryptor::AES_BLOCK_COUNT];
 
     // Compute 8 encrypted counter blocks at a time.
     #[inline(always)]
-    fn generate(&mut self, results: &mut Self::Results) {
+    fn generate(&mut self, results: &mut Self::Output) {
         let mut states = [0; AesEncryptor::AES_BLOCK_COUNT].map(
             #[inline(always)]
             |_| {
@@ -73,20 +72,23 @@ pub struct Prg(BlockRng<PrgCore>);
 
 opaque_debug::implement!(Prg);
 
-impl RngCore for Prg {
+impl TryRng for Prg {
+    type Error = Infallible;
+
     #[inline(always)]
-    fn next_u32(&mut self) -> u32 {
-        self.0.next_u32()
+    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
+        Ok(self.0.next_word())
     }
 
     #[inline(always)]
-    fn next_u64(&mut self) -> u64 {
-        self.0.next_u64()
+    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
+        Ok(self.0.next_u64_from_u32())
     }
 
     #[inline(always)]
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.0.fill_bytes(dest)
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Infallible> {
+        self.0.fill_bytes(dest);
+        Ok(())
     }
 }
 
@@ -95,11 +97,11 @@ impl SeedableRng for Prg {
 
     #[inline(always)]
     fn from_seed(seed: Self::Seed) -> Self {
-        Prg(BlockRng::<PrgCore>::from_seed(seed))
+        Prg(BlockRng::new(PrgCore::from_seed(seed)))
     }
 }
 
-impl CryptoRng for Prg {}
+impl TryCryptoRng for Prg {}
 
 impl Prg {
     /// New Prg with random seed.
@@ -143,7 +145,9 @@ impl Prg {
     /// Fill a bool slice with random bool values.
     #[inline(always)]
     pub fn random_bools(&mut self, buf: &mut [bool]) {
-        self.fill(buf);
+        for b in buf {
+            *b = self.random();
+        }
     }
 
     /// Generate a random byte value.

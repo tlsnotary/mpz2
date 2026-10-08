@@ -1,6 +1,6 @@
 [package]
 name = "mpz-garble-core"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2024"
 
 [lints]
@@ -25,7 +25,6 @@ mpz-common = { workspace = true, features = ["future"] }
 mpz-core = { workspace = true }
 mpz-memory-core = { workspace = true }
 mpz-ot-core = { workspace = true }
-mpz-vm-core = { workspace = true }
 
 aes = { workspace = true, features = [] }
 bitvec = { workspace = true, features = ["serde"] }

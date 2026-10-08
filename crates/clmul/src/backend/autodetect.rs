@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn reduce_test() {
-        use rand::Rng;
+        use rand::RngExt;
         use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
 
         let mut rng = ChaCha12Rng::from_seed([0; 32]);

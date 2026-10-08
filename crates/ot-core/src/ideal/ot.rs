@@ -286,7 +286,7 @@ impl OTReceiver<bool, Block> for IdealOT {
 #[cfg(test)]
 mod tests {
     use mpz_core::Block;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use crate::test::assert_ot;
 
@@ -296,8 +296,7 @@ mod tests {
     #[test]
     fn test_ideal_ot_separate() {
         let mut rng = StdRng::seed_from_u64(0);
-        let mut choices = vec![false; 100];
-        rng.fill(&mut choices[..]);
+        let choices: Vec<bool> = (0..100).map(|_| rng.random()).collect();
 
         let msgs: Vec<[Block; 2]> = (0..100).map(|_| [rng.random(), rng.random()]).collect();
 
@@ -322,8 +321,7 @@ mod tests {
     #[test]
     fn test_ideal_ot_wrapper() {
         let mut rng = StdRng::seed_from_u64(0);
-        let mut choices = vec![false; 100];
-        rng.fill(&mut choices[..]);
+        let choices: Vec<bool> = (0..100).map(|_| rng.random()).collect();
 
         let msgs: Vec<[Block; 2]> = (0..100).map(|_| [rng.random(), rng.random()]).collect();
 

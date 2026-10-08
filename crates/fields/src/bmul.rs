@@ -111,7 +111,8 @@ mod tests {
         assert_eq!(bmul64_full(1 << 63, 2), (0, 1));
         // x^63 · x^63 = x^126 → hi bit 62 set.
         assert_eq!(bmul64_full(1 << 63, 1 << 63), (0, 1 << 62));
-        // (x^31 + … + 1)² = x^62 + x^60 + … + 1 (squaring in GF(2) just spreads bits).
+        // (x^31 + … + 1)² = x^62 + x^60 + … + 1 (squaring in GF(2) just spreads
+        // bits).
         assert_eq!(
             bmul64_full(0xFFFFFFFF, 0xFFFFFFFF),
             (0x5555_5555_5555_5555, 0)

@@ -31,7 +31,7 @@ use std::{
 
 use hybrid_array::{Array, ArraySize};
 use itybity::{BitLength, FromBitIterator, GetBit, Lsb0, Msb0};
-use rand::{Rng, distr::StandardUniform, prelude::Distribution};
+use rand::{Rng, RngExt, distr::StandardUniform, prelude::Distribution};
 use thiserror::Error;
 use typenum::Unsigned;
 

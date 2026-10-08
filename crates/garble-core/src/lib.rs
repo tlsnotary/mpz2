@@ -46,7 +46,7 @@ mod tests {
     use itybity::{FromBitIterator, IntoBitIterator, ToBits};
     use mpz_circuits::{AES128, circuits::xor};
     use mpz_core::{Block, aes::FIXED_KEY_AES};
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
     use rand_chacha::ChaCha12Rng;
 
     use crate::evaluator::evaluate_garbled_circuits;

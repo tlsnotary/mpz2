@@ -83,7 +83,7 @@ mod tests {
     #[cfg(feature = "aes")]
     fn test_aes128() {
         use aes::cipher::{BlockCipherEncrypt, KeyInit};
-        use rand::{Rng, SeedableRng, rngs::StdRng};
+        use rand::{RngExt, SeedableRng, rngs::StdRng};
 
         fn aes_128(key: [u8; 16], msg: [u8; 16]) -> [u8; 16] {
             use aes::Aes128;
@@ -131,7 +131,7 @@ mod tests {
 
         fn sha256_compress(msg: [u8; 64], state: [u32; 8]) -> [u32; 8] {
             let mut state = state;
-            sha2::compress256(&mut state, &[msg.into()]);
+            sha2::block_api::compress256(&mut state, &[msg]);
             state
         }
 
@@ -162,14 +162,12 @@ mod tests {
     #[test]
     #[cfg(feature = "keccak")]
     fn test_keccak_permute() {
-        use keccak::f1600 as keccak_f;
-
         let mut init_state: [u64; 25] = [1u64; 25].map(u64::to_le);
 
         let output: [u64; 25] = evaluate!(KECCAK_PERMUTE, init_state).unwrap();
 
         // Puts expected output into `init_state`.
-        keccak_f(&mut init_state);
+        keccak::Keccak::new().with_f1600(|f| f(&mut init_state));
 
         assert_eq!(output, init_state);
     }

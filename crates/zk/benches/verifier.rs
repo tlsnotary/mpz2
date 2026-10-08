@@ -8,9 +8,12 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use futures::executor::block_on;
 use mpz_circuits::AES128;
-use mpz_common::context::{
-    Multithread, RecordedMtData, recording_mt_context_with_limit, recording_st_context_with_limit,
-    replay_mt_context_with_limit, replay_st_context,
+use mpz_common::{
+    Session,
+    context::{
+        RecordedMtData, recording_mt_context_with_limit, recording_st_context_with_limit,
+        replay_mt_context_with_limit, replay_st_context,
+    },
 };
 use mpz_core::Block;
 use mpz_ot::ideal::rcot::ideal_rcot;
@@ -20,7 +23,7 @@ use mpz_vm_core::{
     prelude::*,
 };
 use mpz_zk::{Prover, ProverConfig, Verifier, VerifierConfig};
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 // Gate count thresholds
 const THRESHOLDS: &[(u64, &str)] = &[(100_000, "100K"), (1_000_000, "1M"), (10_000_000, "10M")];
@@ -173,8 +176,8 @@ async fn run_verifier_with_replay(
 
 /// Runs the full ZK protocol with MT contexts.
 async fn run_protocol_record_prover_mt(
-    exec_p: &mut Multithread,
-    exec_v: &mut Multithread,
+    exec_p: &mut Session,
+    exec_v: &mut Session,
     circuit_count: usize,
     seed: u64,
 ) {
@@ -270,7 +273,7 @@ fn record_for_verifier_mt(circuit_count: usize, seed: u64) -> (RecordedMtData, B
 
 /// Runs MT verifier only with replay context.
 async fn run_verifier_with_replay_mt(
-    exec: &mut Multithread,
+    exec: &mut Session,
     circuit_count: usize,
     delta: Delta,
     ot_seed: Block,

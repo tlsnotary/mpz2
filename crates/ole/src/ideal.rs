@@ -1,7 +1,7 @@
 //! Ideal ROLE.
 
 use async_trait::async_trait;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 use mpz_common::{
     Context, Flush,

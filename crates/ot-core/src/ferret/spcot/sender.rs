@@ -1,6 +1,6 @@
 use blake3::{Hash, Hasher, hash};
 use cfg_if::cfg_if;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, RngExt, SeedableRng};
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 

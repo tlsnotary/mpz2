@@ -2,8 +2,10 @@
 //!
 //! Run with: cargo bench -p mpz-zk-core --bench verifier
 
+use std::hint::black_box;
+
 use blake3::Hasher;
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use mpz_circuits::AES128;
 use mpz_memory_core::correlated::{Delta, Key, Mac};
 use mpz_ot_core::{
@@ -11,7 +13,7 @@ use mpz_ot_core::{
     rcot::{RCOTReceiverOutput, RCOTSenderOutput},
 };
 use mpz_zk_core::{Prover, Verifier};
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use std::sync::Arc;
 
 // Gate count thresholds for execute
@@ -209,7 +211,8 @@ fn bench_verifier_check(c: &mut Criterion) {
         group.bench_function(BenchmarkId::new("check", name), |b| {
             b.iter_batched(
                 || {
-                    // SETUP (not timed): build prover+verifier, run execute, run prover check
+                    // SETUP (not timed): build prover+verifier, run execute,
+                    // run prover check
                     let mut prover = Prover::default();
                     let mut verifier = Verifier::new(delta);
 

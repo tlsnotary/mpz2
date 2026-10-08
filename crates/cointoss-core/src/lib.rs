@@ -3,7 +3,6 @@
 //! # Example
 //!
 //! ```
-//! use rand::{thread_rng, Rng};
 //! use mpz_cointoss_core::{Sender, Receiver, CointossError};
 //! use mpz_core::Block;
 //!

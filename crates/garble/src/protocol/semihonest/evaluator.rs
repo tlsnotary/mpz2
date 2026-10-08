@@ -232,39 +232,43 @@ where
 
         let (_, preprocessed) = ctx
             .try_join(
-                async move |ctx| {
-                    // This flush is primarily intended to perform OT setup
-                    // concurrently with preprocessing.
-                    cot.flush(ctx).await.map_err(VmError::execute)
+                move |ctx| {
+                    Box::pin(async move {
+                        // This flush is primarily intended to perform OT setup
+                        // concurrently with preprocessing.
+                        cot.flush(ctx).await.map_err(VmError::execute)
+                    })
                 },
-                async move |ctx| {
-                    let mut preprocessed = Vec::new();
+                move |ctx| {
+                    Box::pin(async move {
+                        let mut preprocessed = Vec::new();
 
-                    while !call_stack.is_empty() {
-                        let calls = take_preprocess_calls(&mut call_stack);
+                        while !call_stack.is_empty() {
+                            let calls = take_preprocess_calls(&mut call_stack);
 
-                        // There must be at least one call ready for preprocessing
-                        // in a non-empty call stack.
-                        debug_assert!(!calls.is_empty());
+                            // There must be at least one call ready for
+                            // preprocessing
+                            // in a non-empty call stack.
+                            debug_assert!(!calls.is_empty());
 
-                        let mut outputs = ctx
-                            .map(
-                                calls,
-                                async move |ctx, (call, output): (Call, Slice)| {
-                                    let garbled_circuit = receive_garbled_circuit(ctx, call.circ())
-                                        .await
-                                        .map_err(VmError::execute)?;
-                                    Ok::<_, VmError>((call, output, garbled_circuit))
-                                },
-                                |(call, _)| call.circ().and_count(),
-                            )
-                            .await
-                            .map_err(VmError::execute)?;
+                            let mut outputs = ctx
+                                .map(calls, move |ctx, (call, output): (Call, Slice)| {
+                                    Box::pin(async move {
+                                        let garbled_circuit =
+                                            receive_garbled_circuit(ctx, call.circ())
+                                                .await
+                                                .map_err(VmError::execute)?;
+                                        Ok::<_, VmError>((call, output, garbled_circuit))
+                                    })
+                                })
+                                .await
+                                .map_err(VmError::execute)?;
 
-                        preprocessed.append(&mut outputs);
-                    }
+                            preprocessed.append(&mut outputs);
+                        }
 
-                    Ok::<_, VmError>(preprocessed)
+                        Ok::<_, VmError>(preprocessed)
+                    })
                 },
             )
             .await
@@ -310,13 +314,10 @@ where
 
             let store = self.store.clone();
             let outputs = ctx
-                .map(
-                    calls,
-                    async move |ctx, (call, output): (Call, Slice)| {
-                        evaluate(ctx, store.clone(), call, output).await
-                    },
-                    |(call, _)| call.circ().and_count(),
-                )
+                .map(calls, move |ctx, (call, output): (Call, Slice)| {
+                    let store = store.clone();
+                    Box::pin(async move { evaluate(ctx, store, call, output).await })
+                })
                 .await
                 .map_err(VmError::execute)?;
 

@@ -13,7 +13,7 @@ use mpz_ot_core::{
     rcot::{RCOTReceiverOutput, RCOTSenderOutput},
 };
 use mpz_zk_core::Prover;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use std::sync::Arc;
 
 use crate::BenchResult;

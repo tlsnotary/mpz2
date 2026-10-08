@@ -9,7 +9,7 @@ use mpz_ot_core::{
     rot::{ROTReceiver, ROTReceiverOutput, ROTSender, ROTSenderOutput},
     test::{assert_cot, assert_ot, assert_rot},
 };
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 /// Tests OT functionality.
 pub async fn test_ot<S, R>(mut sender: S, mut receiver: R, cycles: usize)

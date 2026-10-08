@@ -194,7 +194,7 @@ impl AesEncryptor {
         assert!(blks.len() >= NM * NK);
 
         keys.iter()
-            .zip(blks.chunks_exact_mut(NM))
+            .zip(blks.as_chunks_mut::<NM>().0)
             .for_each(|(key, blks)| {
                 key.encrypt_blocks(blks);
             });

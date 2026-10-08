@@ -9,8 +9,9 @@ use std::sync::{Arc, Mutex};
 
 use mpz_circuits::AES128;
 #[cfg(target_arch = "wasm32")]
+use mpz_common::Session;
 use mpz_common::context::{
-    Multithread, RecordedMtData, recording_mt_context_with_spawn_and_limit,
+    RecordedMtData, recording_mt_context_with_spawn_and_limit,
     replay_mt_context_with_spawn_and_limit,
 };
 use mpz_core::Block;
@@ -18,7 +19,7 @@ use mpz_memory_core::{Array, binary::U8, correlated::Delta};
 use mpz_ot::ideal::rcot::ideal_rcot;
 use mpz_vm_core::{Call, prelude::*};
 use mpz_zk::{Prover, ProverConfig, Verifier, VerifierConfig};
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 use crate::BenchResult;
 
@@ -34,8 +35,8 @@ fn max_frame_length(circuit: &mpz_circuits::Circuit, circuit_count: usize) -> us
 /// Records prover->verifier messages.
 #[cfg(target_arch = "wasm32")]
 async fn run_protocol_record_prover(
-    exec_p: &mut Multithread,
-    exec_v: &mut Multithread,
+    exec_p: &mut Session,
+    exec_v: &mut Session,
     seed: u64,
     circuit_count: usize,
 ) {
@@ -149,7 +150,7 @@ async fn record_for_verifier(
 /// Runs verifier only with replay context.
 #[cfg(target_arch = "wasm32")]
 async fn run_verifier_with_replay(
-    exec: &mut Multithread,
+    exec: &mut Session,
     circuit_count: usize,
     delta: Delta,
     ot_seed: Block,

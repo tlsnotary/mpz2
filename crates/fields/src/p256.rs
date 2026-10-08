@@ -2,49 +2,59 @@
 
 use std::ops::{Add, Mul, Neg, Sub};
 
-use ark_ff::{BigInt, BigInteger, Field as ArkField, FpConfig, MontBackend, One, Zero};
-use ark_secp256r1::{FqConfig, fq::Fq};
-use ark_serialize::{
-    CanonicalDeserialize, CanonicalSerialize, Compress, SerializationError, Validate,
+use crypto_bigint::{
+    ArrayEncoding, NonZero, RandomMod, U256, const_monty_params,
+    modular::{ConstMontyForm, ConstMontyParams},
 };
 use hybrid_array::Array;
 use itybity::{BitLength, FromBitIterator, GetBit, Lsb0, Msb0};
-use mpz_core::rand::Rand0_8CompatExt;
-use num_bigint::ToBigUint;
 use rand::{distr::StandardUniform, prelude::Distribution};
-use rand_08::Rng as _;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use typenum::{U32, U256};
+use typenum::{U32, U256 as TU256};
 
 use crate::{Field, FieldError};
 
+const_monty_params!(
+    P256Modulus,
+    U256,
+    "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff",
+    "The P-256 base field modulus p = 2^256 - 2^224 + 2^192 + 2^96 - 1."
+);
+
+type Fq = ConstMontyForm<P256Modulus, { U256::LIMBS }>;
+
+const MODULUS_NZ: &NonZero<U256> = P256Modulus::PARAMS.modulus().as_nz_ref();
+
 /// A type for holding field elements of P256.
-#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(into = "[u8; 32]")]
 #[serde(try_from = "[u8; 32]")]
-pub struct P256(pub(crate) Fq);
+pub struct P256(Fq);
 
 opaque_debug::implement!(P256);
 
 impl P256 {
-    /// Creates a new field element, returning `None` if the value is not a
-    /// valid element.
-    pub fn new(value: impl ToBigUint) -> Option<Self> {
-        value.to_biguint().map(|input| P256(Fq::from(input)))
+    fn canonical(&self) -> U256 {
+        self.0.retrieve()
+    }
+}
+
+impl PartialOrd for P256 {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for P256 {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.as_montgomery().cmp(other.0.as_montgomery())
     }
 }
 
 impl From<P256> for [u8; 32] {
     fn from(value: P256) -> Self {
-        let mut bytes = [0u8; 32];
-
-        value
-            .0
-            .serialize_with_mode(&mut bytes[..], Compress::No)
-            .expect("field element should be 32 bytes");
-
-        bytes
+        value.canonical().to_le_byte_array().into()
     }
 }
 
@@ -53,9 +63,11 @@ impl TryFrom<[u8; 32]> for P256 {
 
     /// Converts little-endian bytes into a P256 field element.
     fn try_from(value: [u8; 32]) -> Result<Self, Self::Error> {
-        Fq::deserialize_with_mode(&value[..], Compress::No, Validate::Yes)
-            .map(P256)
-            .map_err(|err| FieldError(Box::new(P256Error(err))))
+        let int = U256::from_le_slice(&value);
+        if int >= *P256Modulus::PARAMS.modulus().as_ref() {
+            return Err(FieldError(Box::new(P256Error(ErrorRepr::NotCanonical))));
+        }
+        Ok(P256(Fq::new(&int)))
     }
 }
 
@@ -64,14 +76,13 @@ impl TryFrom<Array<u8, U32>> for P256 {
 
     fn try_from(value: Array<u8, U32>) -> Result<Self, Self::Error> {
         let inner: [u8; 32] = value.into();
-
         P256::try_from(inner)
     }
 }
 
 impl Distribution<P256> for StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> P256 {
-        P256(rng.compat().r#gen::<Fq>())
+        P256(Fq::new(&U256::random_mod_vartime(rng, MODULUS_NZ)))
     }
 }
 
@@ -103,42 +114,45 @@ impl Neg for P256 {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        Self(-self.0)
+        Self(self.0.neg())
     }
 }
 
 impl Field for P256 {
-    type BitSize = U256;
+    type BitSize = TU256;
 
     type ByteSize = U32;
 
     fn zero() -> Self {
-        P256(<Fq as Zero>::zero())
+        P256(Fq::ZERO)
     }
 
     fn one() -> Self {
-        P256(<Fq as One>::one())
+        P256(Fq::ONE)
     }
 
     fn two_pow(rhs: u32) -> Self {
-        let mut out = <Fq as One>::one();
+        let mut out = Fq::ONE;
         for _ in 0..rhs {
-            MontBackend::<FqConfig, 4>::double_in_place(&mut out);
+            out = out.double();
         }
-
         P256(out)
     }
 
     fn inverse(self) -> Option<Self> {
-        ArkField::inverse(&self.0).map(P256)
+        self.0.invert().into_option().map(P256)
+    }
+
+    fn square(self) -> Self {
+        P256(self.0.square())
     }
 
     fn to_le_bytes(&self) -> Vec<u8> {
-        BigInt::to_bytes_le(&MontBackend::<FqConfig, 4>::into_bigint(self.0))
+        self.canonical().to_le_bytes().as_ref().to_vec()
     }
 
     fn to_be_bytes(&self) -> Vec<u8> {
-        BigInt::to_bytes_be(&MontBackend::<FqConfig, 4>::into_bigint(self.0))
+        self.canonical().to_be_bytes().as_ref().to_vec()
     }
 }
 
@@ -148,37 +162,44 @@ impl BitLength for P256 {
 
 impl GetBit<Lsb0> for P256 {
     fn get_bit(&self, index: usize) -> bool {
-        MontBackend::<FqConfig, 4>::into_bigint(self.0).get_bit(index)
+        self.canonical().bit_vartime(index as u32)
     }
 }
 
 impl GetBit<Msb0> for P256 {
     fn get_bit(&self, index: usize) -> bool {
-        MontBackend::<FqConfig, 4>::into_bigint(self.0).get_bit(255 - index)
+        self.canonical().bit_vartime((255 - index) as u32)
     }
 }
 
 impl FromBitIterator for P256 {
     fn from_lsb0_iter(iter: impl IntoIterator<Item = bool>) -> Self {
-        P256(BigInt::from_bits_le(&iter.into_iter().collect::<Vec<bool>>()).into())
+        let bytes = <[u8; 32]>::from_lsb0_iter(iter);
+        P256(Fq::new(&U256::from_le_slice(&bytes)))
     }
 
     fn from_msb0_iter(iter: impl IntoIterator<Item = bool>) -> Self {
-        P256(BigInt::from_bits_be(&iter.into_iter().collect::<Vec<bool>>()).into())
+        let bytes = <[u8; 32]>::from_msb0_iter(iter);
+        P256(Fq::new(&U256::from_be_slice(&bytes)))
     }
 }
 
-/// Helper type because [`SerializationError`] does not implement
-/// std::error::Error.
+/// Errors arising from constructing a P-256 field element from bytes.
 #[derive(Debug, Error)]
-#[error("{0}")]
-pub struct P256Error(SerializationError);
+#[error(transparent)]
+pub struct P256Error(ErrorRepr);
+
+#[derive(Debug, Error)]
+enum ErrorRepr {
+    #[error("byte encoding is not a canonical field element (value ≥ modulus)")]
+    NotCanonical,
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use mpz_core::{Block, prg::Prg};
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
 
     use crate::tests::{
         test_field_basic, test_field_bit_ops_lsb0, test_field_bit_ops_msb0,
@@ -188,8 +209,6 @@ mod tests {
     #[test]
     fn test_p256_basic() {
         test_field_basic::<P256>();
-        assert_eq!(P256::new(0).unwrap(), P256::zero());
-        assert_eq!(P256::new(1).unwrap(), P256::one());
     }
 
     #[test]

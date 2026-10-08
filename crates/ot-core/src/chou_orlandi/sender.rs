@@ -10,7 +10,7 @@ use crate::{
 };
 
 use mpz_common::future::{MaybeDone, Sender as OutputSender, new_output};
-use mpz_core::{Block, rand::Rand0_8CompatExt};
+use mpz_core::Block;
 
 use curve25519_dalek::{
     constants::RISTRETTO_BASEPOINT_TABLE, ristretto::RistrettoPoint, scalar::Scalar,
@@ -55,7 +55,7 @@ impl Sender {
     pub fn new_with_seed(seed: [u8; 32]) -> Self {
         let mut rng = ChaCha20Rng::from_seed(seed);
 
-        let private_key = Scalar::random(&mut rng.compat_by_ref());
+        let private_key = Scalar::random(&mut rng);
         let public_key = &private_key * RISTRETTO_BASEPOINT_TABLE;
         let state = state::Initialized {
             private_key,
@@ -236,8 +236,8 @@ pub mod state {
 
     impl Default for Initialized {
         fn default() -> Self {
-            let mut rng = ChaCha20Rng::from_os_rng();
-            let private_key = Scalar::random(&mut rng.compat_by_ref());
+            let mut rng = ChaCha20Rng::from_rng(&mut rand::rng());
+            let private_key = Scalar::random(&mut rng);
             let public_key = &private_key * RISTRETTO_BASEPOINT_TABLE;
             Initialized {
                 private_key,

@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, sync::Arc};
 
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 use mpz_common::future::{MaybeDone, Sender as OutputSender, new_output};
@@ -118,7 +118,8 @@ where
             return Err(ErrorRepr::State("not in extend state".to_string()).into());
         };
 
-        // If available COTs are insufficient, we bootstrap from the inner COT instance.
+        // If available COTs are insufficient, we bootstrap from the inner COT
+        // instance.
         if self.wants_bootstrap() {
             let missing = self.config.bootstrap_cost() - self.macs.len();
             let RCOTReceiverOutput {

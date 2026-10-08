@@ -5,7 +5,7 @@ use crate::{
     hash::{Hash, SecureHash},
     serialize::CanonicalSerialize,
 };
-use rand::{Rng, rng};
+use rand::{RngExt, rng};
 use serde::{Deserialize, Serialize};
 
 /// Error associated with commitments

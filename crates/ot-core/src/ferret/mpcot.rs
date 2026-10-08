@@ -9,7 +9,7 @@ mod tests {
     use super::*;
     use crate::ferret::spcot::spcot;
     use mpz_core::lpn::{LpnType, sample_error_indices};
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
     use rstest::*;
 
     #[rstest]

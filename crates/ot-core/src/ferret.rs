@@ -67,7 +67,7 @@ mod tests {
     #[case::uniform(LpnType::Uniform)]
     #[case::regular(LpnType::Regular)]
     fn test_ferret(#[case] lpn_type: LpnType) {
-        use rand::Rng;
+        use rand::RngExt;
 
         let mut rng = StdRng::seed_from_u64(0);
         let delta = rng.random();

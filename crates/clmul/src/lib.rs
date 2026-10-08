@@ -71,7 +71,7 @@ mod tests {
     #[cfg(not(clmul_force_soft))]
     // test backends against each other
     fn clmul_test() {
-        use rand::Rng;
+        use rand::RngExt;
         use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
 
         // test soft backends
@@ -195,8 +195,8 @@ mod tests {
 
     #[test]
     // Test against test vectors from
-    // Intel® Carry-Less Multiplication Instruction and its Usage for Computing the
-    // GCM Mode
+    // Intel® Carry-Less Multiplication Instruction and its Usage for Computing
+    // the GCM Mode
     fn clmul_test_vectors() {
         use super::backend::Clmul;
 

@@ -158,9 +158,8 @@ where
             }
 
             let outputs = ctx
-                .map(
-                    tasks,
-                    async move |ctx, (mut execute, output)| {
+                .map(tasks, move |ctx, (mut execute, output)| {
+                    Box::pin(async move {
                         let mut consumer = execute.consumer();
                         while consumer.wants_adjust() {
                             let adjust: BitVec = ctx.io_mut().expect_next().await?;
@@ -172,9 +171,8 @@ where
                         let output_keys = execute.finish().map_err(VmError::execute)?;
 
                         Ok((output, output_keys))
-                    },
-                    |(execute, _)| execute.and_count(),
-                )
+                    })
+                })
                 .await
                 .map_err(VmError::execute)?
                 .into_iter()

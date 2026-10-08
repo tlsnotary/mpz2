@@ -279,7 +279,7 @@ impl IdealROLEError {
 #[cfg(test)]
 mod tests {
     use mpz_fields::{gf2_128::Gf2_128, p256::P256};
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use super::*;
 

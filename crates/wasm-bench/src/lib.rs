@@ -8,6 +8,9 @@
 //! - `zk`: QuickSilver ZK benchmarks (core + protocol + prover/verifier)
 //! - `ot`: Oblivious transfer benchmarks (Ferret)
 
+// wasm_bindgen's `getter_with_clone` codegen calls `.clone()` on Copy fields.
+#![cfg_attr(target_arch = "wasm32", allow(clippy::clone_on_copy))]
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -128,7 +131,7 @@ pub async fn test_mt_context_only() -> Result<u32, JsValue> {
     use mpz_common::context::test_mt_context_with_spawn;
     use serio::{SinkExt, stream::IoStreamExt};
 
-    let (mut mt1, mut mt2) = test_mt_context_with_spawn(8, |f| {
+    let (mt1, mt2) = test_mt_context_with_spawn(8, |f| {
         let _ = web_spawn::spawn(f);
         Ok(())
     });

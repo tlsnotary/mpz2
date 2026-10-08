@@ -135,7 +135,7 @@ pub enum IdealROTError {
 mod tests {
     use mpz_common::context::test_st_context;
     use mpz_ot_core::test::assert_rot;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use super::*;
 

@@ -1,7 +1,8 @@
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 
 use mpz_core::{block::Block, prg::Prg};
-use rand_core::RngCore;
+use rand_core::Rng;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("prg");

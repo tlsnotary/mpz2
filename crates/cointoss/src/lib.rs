@@ -3,7 +3,6 @@
 //! # Example
 //!
 //! ```
-//! use rand::{thread_rng, Rng};
 //! use mpz_core::Block;
 //! use mpz_common::context::test_st_context;
 //! use mpz_cointoss::{cointoss_receiver, cointoss_sender};

@@ -1,7 +1,8 @@
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use mpz_core::{Block, prg::Prg};
 use mpz_fields::{Field, gf2_64::Gf2_64, gf2_128::Gf2_128};
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
+use std::hint::black_box;
 
 const INNER_PRODUCT_LENS: &[usize] = &[1 << 8, 1 << 16, 1 << 20];
 

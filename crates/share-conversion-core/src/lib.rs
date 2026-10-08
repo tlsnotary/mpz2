@@ -104,7 +104,7 @@ mod tests {
 
     use mpz_fields::{Field, gf2_128::Gf2_128, p256::P256};
     use mpz_ole_core::ideal::IdealROLE;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     #[test]
     fn test_a2m_p256() {

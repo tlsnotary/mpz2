@@ -92,7 +92,7 @@ impl Check {
         let rng = ChaCha12Rng::from_seed(seed);
 
         let process_segment = |rng: &mut ChaCha12Rng, segment: &[Triple]| {
-            use rand_chacha::rand_core::RngCore;
+            use rand_chacha::rand_core::Rng;
 
             let mut u_acc = Block::ZERO;
             let mut v_acc = Block::ZERO;
@@ -183,7 +183,7 @@ impl Check {
         let rng = ChaCha12Rng::from_seed(seed);
 
         let process_segment = |rng: &mut ChaCha12Rng, segment: &[Triple]| {
-            use rand_chacha::rand_core::RngCore;
+            use rand_chacha::rand_core::Rng;
 
             let mut w_acc = Block::ZERO;
             let mut chi = Block::ZERO;

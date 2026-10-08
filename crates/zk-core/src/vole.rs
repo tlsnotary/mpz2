@@ -40,7 +40,7 @@ mod tests {
         ideal::rcot::IdealRCOT,
         rcot::{RCOTReceiverOutput, RCOTSenderOutput},
     };
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     #[test]
     fn test_vole() {

@@ -103,7 +103,7 @@ where
             .zip(masks)
             .map(|((bits, corr), mask)| {
                 OLEShare::new_ole_receiver(
-                    F::from_lsb0_iter(bits.iter().copied()),
+                    bits,
                     Array::<F, F::BitSize>::try_from(corr)
                         .expect("slice should have length of bit size of field element"),
                     mask,

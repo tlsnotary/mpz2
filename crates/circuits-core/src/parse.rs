@@ -200,7 +200,7 @@ mod tests {
             cipher::{BlockCipherEncrypt, KeyInit},
         };
 
-        use rand::{Rng, SeedableRng, rngs::StdRng};
+        use rand::{RngExt, SeedableRng, rngs::StdRng};
         let mut rng = StdRng::seed_from_u64(0);
 
         let key: [u8; 16] = rng.random();
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     #[ignore = "expensive"]
     fn test_parse_sha() {
-        use sha2::compress256;
+        use sha2::block_api::compress256;
 
         let circ = Circuit::parse("bristol/sha256_reverse.txt").unwrap();
 
@@ -241,7 +241,7 @@ mod tests {
         );
 
         let mut expected = SHA2_INITIAL_STATE;
-        compress256(&mut expected, &[msg.into()]);
+        compress256(&mut expected, &[msg]);
 
         assert_eq!(output, expected);
     }

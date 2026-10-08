@@ -8,7 +8,9 @@ pub use sender::AnySender;
 
 #[cfg(test)]
 mod tests {
-    use rand::{Rng, SeedableRng, distr::StandardUniform, prelude::Distribution, rngs::StdRng};
+    use rand::{
+        Rng, RngExt, SeedableRng, distr::StandardUniform, prelude::Distribution, rngs::StdRng,
+    };
 
     use super::*;
     use crate::{ideal::rot::ideal_rot, test::test_rot};

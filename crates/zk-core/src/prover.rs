@@ -208,8 +208,9 @@ where
                     let mac_y = self.macs[y.id()];
                     let mut mac_z = self.gate_macs[*self.counter];
 
-                    // By convention, the LSB of a MAC must contain the value of the authenticated
-                    // bit. The verifier must set LSB(key) == 0 and LSB(delta)
+                    // By convention, the LSB of a MAC must contain the value of
+                    // the authenticated bit. The verifier
+                    // must set LSB(key) == 0 and LSB(delta)
                     // == 1.
                     let w_z = mac_x.pointer() & mac_y.pointer();
                     mac_z.set_pointer(w_z);

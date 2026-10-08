@@ -1,106 +1,72 @@
 use core::fmt;
 
-/// A logical thread identifier.
+/// A logical context identifier.
 ///
-/// Every thread is assigned a unique identifier, which can be forked to create
-/// a child thread.
+/// Hierarchical: each level is a `u32` index, serialized big-endian. Both
+/// parties derive identical IDs by following the same call sequence.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ThreadId(Box<[u8]>);
+pub struct ContextId(Box<[u8]>);
 
-impl Default for ThreadId {
-    fn default() -> Self {
-        Self(vec![0].into())
-    }
-}
+impl ContextId {
+    const LEVEL_BYTES: usize = 4;
 
-impl ThreadId {
-    /// Creates a new thread ID with the provided ID.
+    /// Creates a context ID at the top level with the given index.
     #[inline]
-    pub fn new(id: u8) -> Self {
-        Self(vec![id].into())
+    pub fn new(index: u32) -> Self {
+        Self(index.to_be_bytes().to_vec().into())
     }
 
-    /// Returns the thread ID as a byte slice.
+    /// Creates a context ID from an arbitrary byte prefix.
+    ///
+    /// Useful for namespacing contexts under a caller-chosen identifier (e.g.
+    /// a sub-protocol name). Forked children are appended to this prefix
+    /// using the standard hierarchical layout.
+    #[inline]
+    pub fn from_prefix(prefix: impl AsRef<[u8]>) -> Self {
+        Self(prefix.as_ref().to_vec().into())
+    }
+
+    /// Returns the ID as a byte slice.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 
-    /// Increments the thread ID, returning `None` if the ID overflows.
+    /// Descends into a child namespace at the given index.
     #[inline]
-    pub fn increment(&self) -> Option<Self> {
-        let mut next = self.clone();
-
-        let id = next.0.last_mut()?;
-        *id = id.checked_add(1)?;
-
-        Some(next)
-    }
-
-    /// Increments the thread ID in place, returning the original ID if it
-    /// doesn't overflow.
-    #[inline]
-    pub fn increment_in_place(&mut self) -> Option<Self> {
-        let prev = self.clone();
-
-        let id = self.0.last_mut()?;
-        *id = id.checked_add(1)?;
-
-        Some(prev)
-    }
-
-    /// Forks the thread ID.
-    #[inline]
-    pub fn fork(&self) -> Self {
-        let mut id = vec![0; self.0.len() + 1];
-        id[0..self.0.len()].copy_from_slice(&self.0);
-
-        Self(id.into())
+    pub fn child(&self, index: u32) -> Self {
+        let mut bytes = Vec::with_capacity(self.0.len() + Self::LEVEL_BYTES);
+        bytes.extend_from_slice(&self.0);
+        bytes.extend_from_slice(&index.to_be_bytes());
+        Self(bytes.into())
     }
 }
 
-impl AsRef<[u8]> for ThreadId {
+impl Default for ContextId {
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
+impl AsRef<[u8]> for ContextId {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-impl fmt::Display for ThreadId {
+impl fmt::Display for ContextId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, byte) in self.0.iter().enumerate() {
+        for (i, chunk) in self.0.chunks(Self::LEVEL_BYTES).enumerate() {
             if i > 0 {
                 write!(f, "/")?;
             }
-            write!(f, "{byte}")?;
+            let mut buf = [0u8; 4];
+            buf[..chunk.len()].copy_from_slice(chunk);
+            write!(f, "{}", u32::from_be_bytes(buf))?;
         }
 
         Ok(())
-    }
-}
-
-/// A simple counter.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Counter(u32);
-
-impl Counter {
-    /// Increments the counter in place, returning the previous value.
-    #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Self {
-        let prev = self.0;
-        self.0 += 1;
-        Self(prev)
-    }
-
-    /// Returns the next value without incrementing the counter.
-    pub fn peek(&self) -> Self {
-        Self(self.0 + 1)
-    }
-}
-
-impl fmt::Display for Counter {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
     }
 }
 
@@ -109,13 +75,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_thread_id() {
-        let mut id = ThreadId::new(0);
+    fn test_context_id() {
+        let id = ContextId::default();
+        assert_eq!(id.as_bytes(), &[0, 0, 0, 0]);
 
-        assert_eq!(id.as_bytes(), &[0]);
-        assert_eq!(id.increment_in_place().unwrap().as_bytes(), &[0]);
-        assert_eq!(id.as_bytes(), &[1]);
-        assert_eq!(id.increment().unwrap().as_bytes(), &[2]);
-        assert_eq!(id.fork().as_bytes(), &[1, 0]);
+        let child0 = id.child(0);
+        let child1 = id.child(1);
+        assert_ne!(child0, child1);
+        assert_eq!(child0.as_bytes(), &[0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(child1.as_bytes(), &[0, 0, 0, 0, 0, 0, 0, 1]);
+
+        let grand = child0.child(7);
+        assert_eq!(grand.as_bytes(), &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7]);
     }
 }

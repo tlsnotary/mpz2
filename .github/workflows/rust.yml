@@ -4,7 +4,6 @@ on:
   push:
     branches: [dev]
   pull_request:
-    branches: [dev]
   workflow_dispatch:
 
 env:
@@ -26,9 +25,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2.7.7
 
-      - name: "Build"
-        run: cargo build
-
       - name: "Test"
         # Run all tests (bins, examples, lib, integration and docs)
         # https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection
@@ -46,6 +42,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Nightly is required: .rustfmt.toml uses unstable options, and clippy
+      # with --all-features builds matrix-transpose's simd-transpose feature,
+      # which needs the nightly-only portable_simd language feature.
       - name: Install Rust Nightly with rustfmt and clippy
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -65,6 +64,37 @@ jobs:
         working-directory: crates/wasm-bench
         run: cargo +nightly clippy --lib --target wasm32-unknown-unknown -- -D warnings
 
+  wasm:
+    name: "Build and Test WASM bench"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Nightly with rust-src
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          targets: wasm32-unknown-unknown
+          components: rust-src
+
+      - uses: Swatinem/rust-cache@v2.7.7
+
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+
+      - name: Build WASM bundle
+        working-directory: crates/wasm-bench
+        run: ./build-wasm.sh
+
+      - name: Build benchmark runner
+        run: cargo build --release --bin wasm-bench-runner
+
+      - name: Smoke-test in headless Chrome
+        working-directory: crates/wasm-bench
+        run: ../../target/release/wasm-bench-runner -b garbler_core/half_gates --iterations 1 --samples 1
+
   miri:
     if: ( ! github.event.pull_request.draft )
     name: "Test with Miri"
@@ -77,6 +107,14 @@ jobs:
       CARGO_FEATURE_NO_NEON: "1"
     steps:
       - uses: actions/checkout@v4
+
+      # The `alloca` crate (a dev-dependency pulled in via criterion) has a
+      # build script that cross-compiles C, which needs an aarch64 C compiler
+      # for the aarch64 Miri target.
+      - name: Install aarch64 cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Install Miri
         run: |

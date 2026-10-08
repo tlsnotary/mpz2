@@ -526,14 +526,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start HTTP server
     let server_addr = start_server(crate_dir).await?;
 
-    // Configure browser (headless)
+    // Configure headless browser.
     let builder = BrowserConfig::builder()
-        .arg("--no-sandbox")
-        .arg("--disable-dev-shm-usage")
-        .arg("--disable-gpu")
-        .arg("--disable-cache")
-        .arg("--disable-application-cache")
-        .arg("--headless")
+        .no_sandbox() // CI runners block the unprivileged user namespaces the sandbox needs
+        .arg("disable-dev-shm-usage")
+        .arg("disable-gpu")
+        .arg("disable-cache")
+        .arg("disable-application-cache")
         .window_size(1200, 800);
 
     let config = builder.build()?;
@@ -572,8 +571,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        // MT context needs at least 2 threads (garbler uses try_join which forks into
-        // 2)
+        // MT context needs at least 2 threads (garbler uses try_join which
+        // forks into 2)
         let thread_counts: Vec<u32> = vec![2, 3, 4, 6, 8, 12, 16]
             .into_iter()
             .filter(|&c| c <= available_cpus)

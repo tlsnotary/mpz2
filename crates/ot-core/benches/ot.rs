@@ -1,4 +1,4 @@
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use itybity::ToBits;
 use mpz_core::{Block, lpn::LpnType};
 use mpz_ot_core::{
@@ -9,8 +9,9 @@ use mpz_ot_core::{
     ot::{OTReceiver, OTSender},
     rcot::{RCOTReceiver, RCOTSender},
 };
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha12Rng;
+use std::hint::black_box;
 
 fn chou_orlandi(c: &mut Criterion) {
     let mut group = c.benchmark_group("chou_orlandi");

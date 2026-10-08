@@ -1,11 +1,11 @@
 //! Multiplexing types.
 
-use crate::{ThreadId, io::Io};
+use crate::io::Io;
 
 /// A multiplexer.
 pub trait Mux {
-    /// Opens a new I/O channel for the given thread.
-    fn open(&self, id: ThreadId) -> Result<Io, std::io::Error>;
+    /// Opens a new I/O channel for the given context ID.
+    fn open(&self, id: &[u8]) -> Result<Io, std::io::Error>;
 }
 
 #[cfg(any(test, feature = "test-utils"))]
@@ -17,7 +17,7 @@ mod test_utils {
 
     use serio::channel::{MemoryDuplex, duplex};
 
-    use crate::{ThreadId, io::Io, mux::Mux};
+    use crate::{io::Io, mux::Mux};
 
     #[derive(Debug, Default)]
     struct State {
@@ -41,16 +41,16 @@ mod test_utils {
     }
 
     impl Mux for TestFramedMux {
-        fn open(&self, id: ThreadId) -> Result<Io, std::io::Error> {
+        fn open(&self, id: &[u8]) -> Result<Io, std::io::Error> {
             let mut state = self.state.lock().unwrap();
 
             if let Some(channel) = match self.role {
-                Role::A => state.waiting_a.remove(id.as_ref()),
-                Role::B => state.waiting_b.remove(id.as_ref()),
+                Role::A => state.waiting_a.remove(id),
+                Role::B => state.waiting_b.remove(id),
             } {
                 Ok(Io::from_channel(channel))
             } else {
-                if !state.exists.insert(id.as_ref().to_vec()) {
+                if !state.exists.insert(id.to_vec()) {
                     return Err(std::io::Error::other("duplicate stream id"));
                 }
 
@@ -58,11 +58,11 @@ mod test_utils {
 
                 match self.role {
                     Role::A => {
-                        state.waiting_b.insert(id.as_ref().to_vec(), b);
+                        state.waiting_b.insert(id.to_vec(), b);
                         Ok(Io::from_channel(a))
                     }
                     Role::B => {
-                        state.waiting_a.insert(id.as_ref().to_vec(), a);
+                        state.waiting_a.insert(id.to_vec(), a);
                         Ok(Io::from_channel(b))
                     }
                 }
@@ -90,7 +90,7 @@ mod test_utils {
 
     #[cfg(test)]
     mod tests {
-        use crate::{ThreadId, mux::Mux};
+        use crate::mux::Mux;
         use serio::{SinkExt, StreamExt};
 
         #[test]
@@ -98,11 +98,11 @@ mod test_utils {
             let (a, b) = super::test_framed_mux(1);
 
             futures::executor::block_on(async {
-                let mut a_0 = a.open(ThreadId::new(0)).unwrap();
-                let mut b_0 = b.open(ThreadId::new(0)).unwrap();
+                let mut a_0 = a.open(&[0]).unwrap();
+                let mut b_0 = b.open(&[0]).unwrap();
 
-                let mut a_1 = a.open(ThreadId::new(1)).unwrap();
-                let mut b_1 = b.open(ThreadId::new(1)).unwrap();
+                let mut a_1 = a.open(&[1]).unwrap();
+                let mut b_1 = b.open(&[1]).unwrap();
 
                 a_0.send(42u8).await.unwrap();
                 assert_eq!(b_0.next::<u8>().await.unwrap().unwrap(), 42);
@@ -117,11 +117,11 @@ mod test_utils {
             let (a, b) = super::test_framed_mux(1);
 
             futures::executor::block_on(async {
-                let _ = a.open(ThreadId::new(0)).unwrap();
-                let _ = b.open(ThreadId::new(0)).unwrap();
+                let _ = a.open(&[0]).unwrap();
+                let _ = b.open(&[0]).unwrap();
 
-                assert!(a.open(ThreadId::new(0)).is_err());
-                assert!(b.open(ThreadId::new(0)).is_err());
+                assert!(a.open(&[0]).is_err());
+                assert!(b.open(&[0]).is_err());
             })
         }
     }

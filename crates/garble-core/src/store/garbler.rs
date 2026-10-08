@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rand::Rng;
+use rand::RngExt;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 use mpz_core::{Block, bitvec::BitVec, prg::Prg};

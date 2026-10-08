@@ -3,7 +3,7 @@
 //! most D non-zero values in each row.
 
 use crate::{Block, prp::Prp};
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 /// An LPN encoder.
 ///

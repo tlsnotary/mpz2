@@ -17,7 +17,7 @@ use std::{
 
 use mpz_common::future::{MaybeDone, Sender, new_output};
 use mpz_core::Block;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
@@ -198,6 +198,8 @@ pub struct IdealROTReceiver {
     choices: Vec<bool>,
     /// Generated messages.
     msgs: Vec<Block>,
+    /// Explicit choices to use on the next flush instead of generating them.
+    forced_choices: Vec<bool>,
     /// Queue of (count, sender) for deferred output.
     queue: Vec<(usize, Sender<ROTReceiverOutput<bool, Block>>)>,
     /// Transfer ID counter.
@@ -212,9 +214,17 @@ impl IdealROTReceiver {
             pending: 0,
             choices: Vec::new(),
             msgs: Vec::new(),
+            forced_choices: Vec::new(),
             queue: Vec::new(),
             transfer_id: TransferId::default(),
         }
+    }
+
+    /// Sets the choices to use on the next flush instead of generating them.
+    ///
+    /// The length must match the number of ROTs flushed.
+    pub fn set_choices(&mut self, choices: Vec<bool>) {
+        self.forced_choices = choices;
     }
 
     /// Returns `true` if the receiver wants to be flushed.
@@ -235,8 +245,18 @@ impl IdealROTReceiver {
             // Regenerate keys from sender's seed (same as sender)
             let keys = generate_keys(flush_msg.seed, flush_msg.offset, flush_msg.count);
 
-            // Generate choices from receiver's own RNG
-            let choices: Vec<bool> = (0..flush_msg.count).map(|_| self.rng.random()).collect();
+            // Use explicit choices if provided, otherwise generate them.
+            let choices: Vec<bool> = if self.forced_choices.is_empty() {
+                (0..flush_msg.count).map(|_| self.rng.random()).collect()
+            } else if self.forced_choices.len() == flush_msg.count {
+                mem::take(&mut self.forced_choices)
+            } else {
+                return Err(IdealROTError::new(format!(
+                    "forced choices length mismatch: {} != {}",
+                    self.forced_choices.len(),
+                    flush_msg.count
+                )));
+            };
 
             // Compute receiver's messages: msg_i = keys_i[choice_i]
             let msgs: Vec<Block> = keys
@@ -370,6 +390,14 @@ impl IdealROT {
         }
     }
 
+    /// Sets the choices the receiver uses on the next flush instead of
+    /// generating them.
+    ///
+    /// The length must match the number of ROTs flushed.
+    pub fn set_receiver_choices(&mut self, choices: Vec<bool>) {
+        self.inner.lock().unwrap().receiver.set_choices(choices);
+    }
+
     /// Returns `count` random ROTs.
     #[allow(clippy::type_complexity)]
     pub fn transfer(
@@ -462,7 +490,7 @@ impl ROTReceiver<bool, Block> for IdealROT {
 
 #[cfg(test)]
 mod tests {
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use crate::test::assert_rot;
 

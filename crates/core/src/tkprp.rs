@@ -16,8 +16,8 @@ impl TwoKeyPrp {
 
     /// Expands inputs to the destination slice.
     ///
-    /// Outputs are written to the destination slice in the same order as the
-    /// inputs.
+    /// For each input `x`, writes `aes0(x) ^ x` to `dest[2i]` and
+    /// `aes1(x) ^ x` to `dest[2i+1]`.
     ///
     /// # Panics
     ///
@@ -31,20 +31,24 @@ impl TwoKeyPrp {
     pub fn expand(&self, inputs: &[Block], dest: &mut [Block]) {
         assert_eq!(
             dest.len(),
-            inputs.len() * 2,
+            2 * inputs.len(),
             "dest should have twice the length of inputs"
         );
 
-        inputs
-            .iter()
-            .zip(dest.chunks_exact_mut(2))
-            .for_each(|(input, dest)| {
-                dest[1] = *input;
-                dest[0] = *input;
-                self.0[1].encrypt_block_inplace(&mut dest[1]);
-                self.0[0].encrypt_block_inplace(&mut dest[0]);
-                dest[1] ^= *input;
-                dest[0] ^= *input;
-            });
+        const CHUNK: usize = 64;
+
+        for (in_chunk, out_chunk) in inputs.chunks(CHUNK).zip(dest.chunks_mut(2 * CHUNK)) {
+            let m = in_chunk.len();
+            let mut s0 = [Block::ZERO; CHUNK];
+            let mut s1 = [Block::ZERO; CHUNK];
+            s0[..m].copy_from_slice(in_chunk);
+            s1[..m].copy_from_slice(in_chunk);
+            self.0[0].encrypt_blocks(&mut s0[..m]);
+            self.0[1].encrypt_blocks(&mut s1[..m]);
+            for (i, &x) in in_chunk.iter().enumerate() {
+                out_chunk[2 * i] = s0[i] ^ x;
+                out_chunk[2 * i + 1] = s1[i] ^ x;
+            }
+        }
     }
 }

@@ -1,7 +1,10 @@
 [package]
 name = "mpz-ole"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2024"
+
+[lints]
+workspace = true
 
 [lib]
 name = "mpz_ole"

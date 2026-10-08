@@ -41,7 +41,7 @@ mod tests {
     use mpz_common::future::Output;
     use rstest::*;
 
-    use rand::Rng;
+    use rand::RngExt;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
 

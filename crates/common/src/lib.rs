@@ -22,15 +22,18 @@ mod id;
 #[cfg(any(test, feature = "ideal"))]
 pub mod ideal;
 pub mod io;
-pub(crate) mod load_balance;
 pub mod mux;
+pub mod session;
 #[cfg(feature = "sync")]
 pub mod sync;
 mod task;
+pub mod thread_pool;
 
 pub use context::{Context, ContextError};
-pub use id::{Counter, ThreadId};
+pub use id::ContextId;
+pub use session::{Session, SessionBuilder};
 pub use task::Task;
+pub use thread_pool::{ThreadPool, ThreadPoolBuildError, ThreadPoolBuilder};
 
 use async_trait::async_trait;
 

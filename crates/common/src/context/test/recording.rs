@@ -11,13 +11,12 @@ use futures::{AsyncRead, AsyncWrite};
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
 
 use crate::{
-    ThreadId,
-    context::{Context, Multithread, SpawnError},
+    context::Context,
     io::Io,
     mux::Mux,
+    session::{Session, SessionBuilder},
+    thread_pool::ThreadPool,
 };
-
-use super::helpers::new_st_context_with_limit;
 
 /// A duplex stream that records all bytes written.
 ///
@@ -112,8 +111,8 @@ pub fn recording_st_context_with_limit(
     let recording_io_1 = RecordingDuplex::new(io_1, recorded.clone());
 
     (
-        new_st_context_with_limit(io_0.compat(), max_frame_length),
-        new_st_context_with_limit(recording_io_1, max_frame_length),
+        Context::from_io(Io::from_io_with_limit(io_0.compat(), max_frame_length)),
+        Context::from_io(Io::from_io_with_limit(recording_io_1, max_frame_length)),
         recorded,
     )
 }
@@ -124,11 +123,11 @@ pub fn recording_st_context_with_limit(
 
 /// Recorded data for multi-threaded context replay.
 ///
-/// Stores bytes recorded from each channel, keyed by thread ID.
+/// Stores bytes recorded from each channel, keyed by context ID.
 #[derive(Debug, Clone, Default)]
 pub struct RecordedMtData {
     /// Recorded bytes per channel.
-    pub channels: HashMap<ThreadId, Vec<u8>>,
+    pub channels: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 /// Shared state for recording test mux.
@@ -138,11 +137,11 @@ pub struct RecordedMtData {
 #[derive(Default)]
 struct RecordingMuxState {
     /// Channels waiting to be opened by role A.
-    waiting_a: HashMap<ThreadId, Compat<tokio::io::DuplexStream>>,
+    waiting_a: HashMap<Vec<u8>, Compat<tokio::io::DuplexStream>>,
     /// Channels waiting to be opened by role B.
-    waiting_b: HashMap<ThreadId, RecordingDuplexMt>,
+    waiting_b: HashMap<Vec<u8>, RecordingDuplexMt>,
     /// Track which channels have been opened.
-    opened: std::collections::HashSet<ThreadId>,
+    opened: std::collections::HashSet<Vec<u8>>,
 }
 
 /// Role in the recording mux.
@@ -177,13 +176,14 @@ impl std::fmt::Debug for RecordingTestMux {
 }
 
 impl Mux for RecordingTestMux {
-    fn open(&self, id: ThreadId) -> Result<Io, std::io::Error> {
+    fn open(&self, id: &[u8]) -> Result<Io, std::io::Error> {
         let mut state = self.state.lock().unwrap();
+        let id_vec = id.to_vec();
 
         // Check if channel already exists from the other side
         match self.role {
             RecordingRole::A => {
-                if let Some(stream) = state.waiting_a.remove(&id) {
+                if let Some(stream) = state.waiting_a.remove(&id_vec) {
                     return Ok(if let Some(limit) = self.max_frame_length {
                         Io::from_io_with_limit(stream, limit)
                     } else {
@@ -192,7 +192,7 @@ impl Mux for RecordingTestMux {
                 }
             }
             RecordingRole::B => {
-                if let Some(recording_stream) = state.waiting_b.remove(&id) {
+                if let Some(recording_stream) = state.waiting_b.remove(&id_vec) {
                     return Ok(if let Some(limit) = self.max_frame_length {
                         Io::from_io_with_limit(recording_stream, limit)
                     } else {
@@ -203,7 +203,7 @@ impl Mux for RecordingTestMux {
         }
 
         // Check for duplicate
-        if !state.opened.insert(id.clone()) {
+        if !state.opened.insert(id_vec.clone()) {
             return Err(std::io::Error::other("duplicate stream id"));
         }
 
@@ -212,7 +212,7 @@ impl Mux for RecordingTestMux {
 
         // Role B's writes are recorded
         let recorded_for_channel = self.recorded.clone();
-        let channel_id = id.clone();
+        let channel_id = id_vec.clone();
 
         match self.role {
             RecordingRole::A => {
@@ -221,7 +221,7 @@ impl Mux for RecordingTestMux {
                     RecordingDuplexWithId::new(stream_b, channel_id, recorded_for_channel);
                 state
                     .waiting_b
-                    .insert(id, recording_stream.into_recording_duplex());
+                    .insert(id_vec, recording_stream.into_recording_duplex());
                 Ok(if let Some(limit) = self.max_frame_length {
                     Io::from_io_with_limit(stream_a.compat(), limit)
                 } else {
@@ -230,7 +230,7 @@ impl Mux for RecordingTestMux {
             }
             RecordingRole::B => {
                 // B gets recording stream, A gets plain stream
-                state.waiting_a.insert(id, stream_a.compat());
+                state.waiting_a.insert(id_vec, stream_a.compat());
                 let recording_stream =
                     RecordingDuplexWithId::new(stream_b, channel_id, recorded_for_channel);
                 Ok(if let Some(limit) = self.max_frame_length {
@@ -246,14 +246,14 @@ impl Mux for RecordingTestMux {
 /// Helper to create RecordingDuplex with per-channel recording.
 struct RecordingDuplexWithId {
     inner: tokio::io::DuplexStream,
-    channel_id: ThreadId,
+    channel_id: Vec<u8>,
     recorded: Arc<Mutex<RecordedMtData>>,
 }
 
 impl RecordingDuplexWithId {
     fn new(
         inner: tokio::io::DuplexStream,
-        channel_id: ThreadId,
+        channel_id: Vec<u8>,
         recorded: Arc<Mutex<RecordedMtData>>,
     ) -> Self {
         Self {
@@ -277,7 +277,7 @@ impl RecordingDuplexWithId {
 /// Like `RecordingDuplex` but stores bytes per-channel for MT contexts.
 struct RecordingDuplexMt {
     inner: Compat<tokio::io::DuplexStream>,
-    channel_id: ThreadId,
+    channel_id: Vec<u8>,
     recorded: Arc<Mutex<RecordedMtData>>,
 }
 
@@ -359,17 +359,12 @@ fn recording_test_mux(
 /// # Arguments
 ///
 /// * `io_buffer` - Size of the I/O buffer per channel.
-pub fn recording_mt_context(
-    io_buffer: usize,
-) -> (Multithread, Multithread, Arc<Mutex<RecordedMtData>>) {
+pub fn recording_mt_context(io_buffer: usize) -> (Session, Session, Arc<Mutex<RecordedMtData>>) {
     let (mux_0, mux_1, recorded) = recording_test_mux(io_buffer, None);
 
-    let mux_0: Box<dyn Mux + Send> = Box::new(mux_0);
-    let mux_1: Box<dyn Mux + Send> = Box::new(mux_1);
-
     (
-        Multithread::builder().mux(mux_0).build().unwrap(),
-        Multithread::builder().mux(mux_1).build().unwrap(),
+        SessionBuilder::default().build(mux_0).unwrap(),
+        SessionBuilder::default().build(mux_1).unwrap(),
         recorded,
     )
 }
@@ -384,90 +379,45 @@ pub fn recording_mt_context(
 pub fn recording_mt_context_with_limit(
     io_buffer: usize,
     max_frame_length: usize,
-) -> (Multithread, Multithread, Arc<Mutex<RecordedMtData>>) {
+) -> (Session, Session, Arc<Mutex<RecordedMtData>>) {
     let (mux_0, mux_1, recorded) = recording_test_mux(io_buffer, Some(max_frame_length));
 
-    let mux_0: Box<dyn Mux + Send> = Box::new(mux_0);
-    let mux_1: Box<dyn Mux + Send> = Box::new(mux_1);
-
     (
-        Multithread::builder().mux(mux_0).build().unwrap(),
-        Multithread::builder().mux(mux_1).build().unwrap(),
+        SessionBuilder::default().build(mux_0).unwrap(),
+        SessionBuilder::default().build(mux_1).unwrap(),
         recorded,
     )
 }
 
-/// Creates a pair of multi-threaded contexts with custom spawn handler where
-/// writes from ctx_1 are recorded.
+/// Like [`recording_mt_context_with_limit`], but uses a custom worker spawn
+/// callback (e.g. `web_spawn::spawn` on wasm) and a fixed concurrency level.
 ///
-/// # Arguments
-///
-/// * `io_buffer` - Size of the I/O buffer per channel.
-/// * `spawn` - Custom spawn handler for worker threads.
-pub fn recording_mt_context_with_spawn<F>(
-    io_buffer: usize,
-    spawn: F,
-) -> (Multithread, Multithread, Arc<Mutex<RecordedMtData>>)
-where
-    F: FnMut(Box<dyn FnOnce() + Send>) -> Result<(), SpawnError> + Clone + Send + 'static,
-{
-    let (mux_0, mux_1, recorded) = recording_test_mux(io_buffer, None);
-
-    let mux_0: Box<dyn Mux + Send> = Box::new(mux_0);
-    let mux_1: Box<dyn Mux + Send> = Box::new(mux_1);
-
-    (
-        Multithread::builder()
-            .spawn_handler(spawn.clone())
-            .mux(mux_0)
-            .build()
-            .unwrap(),
-        Multithread::builder()
-            .spawn_handler(spawn)
-            .mux(mux_1)
-            .build()
-            .unwrap(),
-        recorded,
-    )
-}
-
-/// Creates a pair of multi-threaded contexts with custom spawn handler and
-/// frame limit where writes from ctx_1 are recorded.
-///
-/// # Arguments
-///
-/// * `io_buffer` - Size of the I/O buffer per channel.
-/// * `max_frame_length` - Maximum frame size in bytes.
-/// * `concurrency` - Maximum parallelism level (max children per parent
-///   thread).
-/// * `spawn` - Custom spawn handler for worker threads.
+/// The same `spawn` callback is used for both sessions.
 pub fn recording_mt_context_with_spawn_and_limit<F>(
     io_buffer: usize,
     max_frame_length: usize,
     concurrency: usize,
     spawn: F,
-) -> (Multithread, Multithread, Arc<Mutex<RecordedMtData>>)
+) -> (Session, Session, Arc<Mutex<RecordedMtData>>)
 where
-    F: FnMut(Box<dyn FnOnce() + Send>) -> Result<(), SpawnError> + Clone + Send + 'static,
+    F: Fn(Box<dyn FnOnce() + Send + 'static>) -> Result<(), std::io::Error>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
 {
     let (mux_0, mux_1, recorded) = recording_test_mux(io_buffer, Some(max_frame_length));
-
-    let mux_0: Box<dyn Mux + Send> = Box::new(mux_0);
-    let mux_1: Box<dyn Mux + Send> = Box::new(mux_1);
-
-    (
-        Multithread::builder()
-            .spawn_handler(spawn.clone())
-            .concurrency(concurrency)
-            .mux(mux_0)
-            .build()
-            .unwrap(),
-        Multithread::builder()
-            .spawn_handler(spawn)
-            .concurrency(concurrency)
-            .mux(mux_1)
-            .build()
-            .unwrap(),
-        recorded,
-    )
+    let pool_0 = ThreadPool::builder()
+        .num_threads(concurrency)
+        .spawn(spawn.clone())
+        .build()
+        .unwrap();
+    let pool_1 = ThreadPool::builder()
+        .num_threads(concurrency)
+        .spawn(spawn)
+        .build()
+        .unwrap();
+    let exec_0 = SessionBuilder::default().pool(pool_0).build(mux_0).unwrap();
+    let exec_1 = SessionBuilder::default().pool(pool_1).build(mux_1).unwrap();
+    (exec_0, exec_1, recorded)
 }

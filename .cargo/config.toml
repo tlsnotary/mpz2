@@ -1,3 +1,12 @@
+[target.wasm32-wasip1]
+rustflags = [
+    "-C",
+    "target-feature=+atomics,+bulk-memory,+mutable-globals,+simd128",
+    "-C",
+    "link-arg=--max-memory=4294967296",
+]
+runner = "scripts/wasm-runner.sh"
+
 [target.wasm32-wasip1-threads]
 rustflags = [
     "-C",
@@ -5,4 +14,4 @@ rustflags = [
     "-C",
     "link-arg=--max-memory=4294967296",
 ]
-runner = "wasmtime --wasi threads"
+runner = "scripts/wasm-runner.sh"

@@ -35,8 +35,8 @@ pub fn transpose_bits(matrix: &mut [u8], rows: usize) -> Result<(), TransposeErr
         return Err(TransposeError::InvalidNumberOfRows);
     }
 
-    // Check that slice is rectangular i.e. the number of cells is a multiple of the
-    // number of rows
+    // Check that slice is rectangular i.e. the number of cells is a multiple of
+    // the number of rows
     if matrix.len() & (rows - 1) != 0 {
         return Err(TransposeError::MalformedSlice);
     }

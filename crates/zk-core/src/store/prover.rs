@@ -86,7 +86,8 @@ impl ProverStore {
             self.mac_store.try_set(slice, &macs[i..i + slice.len()])?;
 
             let data = self.data_store.try_get(slice)?;
-            // Adjust so that the LSB of a MAC contains the value of the authenticated bit.
+            // Adjust so that the LSB of a MAC contains the value of the
+            // authenticated bit.
             self.mac_store.adjust(slice, data)?;
 
             i += slice.len();

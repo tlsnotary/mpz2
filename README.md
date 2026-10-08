@@ -29,6 +29,29 @@ This project is currently under active development and should not be used in pro
   - [`matrix-transpose`](./crates/matrix-transpose/) - Bit-wise matrix transposition.
   - [`clmul`](./crates/clmul/) - Carry-less multiplication.
 
+## Running tests/benches on WASM
+
+Tests and benchmarks can be run against WASM targets using [`wasm-harness`](https://github.com/sinui0/wasm-harness), which is configured as the cargo runner for the `wasm32-wasip1` and `wasm32-wasip1-threads` targets in [`.cargo/config.toml`](./.cargo/config.toml).
+
+Install the harness and a supported WASM target:
+
+```bash
+cargo install wasm-harness
+rustup target add wasm32-wasip1-threads
+```
+
+`wasm-harness` requires a WASM execution engine ([wasmtime](https://wasmtime.dev/), or V8/SpiderMonkey via [jsvu](https://github.com/GoogleChromeLabs/jsvu)). It auto-discovers an available engine, or one can be selected explicitly with `--engine` or the `WASM_HARNESS_ENGINE` environment variable.
+
+Then run tests/benches as usual, passing the WASM target:
+
+```bash
+# Run tests (use the threaded target for crates relying on rayon)
+cargo test -p <crate> --target wasm32-wasip1-threads
+
+# Run benches
+cargo bench -p <crate> --target wasm32-wasip1-threads
+```
+
 ## License
 All crates in this repository are licensed under either of
 

@@ -116,7 +116,7 @@ pub enum IdealOTError {
 mod tests {
     use mpz_common::{context::test_st_context, future::Output};
     use mpz_ot_core::test::assert_ot;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use super::*;
 

@@ -31,7 +31,6 @@ pub use role::{ROLEReceiver, ROLEReceiverOutput, ROLESender, ROLESenderOutput};
 pub use sender::{Sender, SenderError};
 
 use hybrid_array::Array;
-use itybity::ToBits;
 use mpz_fields::Field;
 use serde::{Deserialize, Serialize};
 
@@ -107,31 +106,38 @@ where
 
     /// Creates a new OLE share for the receiver.
     ///
+    /// The original ROT choice bits must be used directly rather than
+    /// converting to a field element and back, because for prime fields where
+    /// `2^k > p`, `from_lsb0_iter` reduces mod p which can produce different
+    /// bits than the ROT choices. The multiplicative share `b` is computed
+    /// from the choice bits using field arithmetic, which naturally reduces.
+    ///
     /// # Arguments
     ///
-    /// * `input` - Input value, `b`.
-    /// * `masks` - Chosen correlation masks.
+    /// * `choices` - Original ROT choice bits (LSB-first).
+    /// * `masks` - Chosen correlation masks from ROT.
     /// * `corr` - Masked correlation from the sender.
     #[inline]
     pub(crate) fn new_ole_receiver(
-        input: F,
+        choices: &[bool],
         masks: Array<F, F::BitSize>,
         corr: MaskedCorrelation<F>,
     ) -> Self {
-        let delta_i = input.iter_lsb0();
+        let delta_i = choices.iter();
         let t_delta_i = masks.iter();
         let corr = corr.0.iter();
 
-        // Compute additive share, `y`.
-        let add = delta_i.zip(corr).zip(t_delta_i).enumerate().fold(
-            F::zero(),
-            |acc, (i, ((delta, &u), &t))| {
+        // Compute additive share `y` and multiplicative share `b` together.
+        let (add, mul) = delta_i.zip(corr).zip(t_delta_i).enumerate().fold(
+            (F::zero(), F::zero()),
+            |(add, mul), (i, ((&delta, &u), &t))| {
+                let two_pow_i = F::two_pow(i as u32);
                 let delta = if delta { F::one() } else { F::zero() };
-                acc + F::two_pow(i as u32) * (delta * u + t)
+                (add + two_pow_i * (delta * u + t), mul + two_pow_i * delta)
             },
         );
 
-        Self { add, mul: input }
+        Self { add, mul }
     }
 
     /// Adjusts the multiplicative share to the target.
@@ -172,6 +178,55 @@ mod tests {
     #[test]
     fn test_ole_gf2_128() {
         test_ole::<Gf2_128>();
+    }
+
+    /// Verifies OLE correctness when the receiver's ROT choice bits represent a
+    /// value >= p (the P256 field prime), driving the real [`Receiver::recv`]
+    /// path through the ROT. Reducing those bits to a field element and
+    /// re-deriving them via `iter_lsb0` yields bits mismatched with the ROT
+    /// choices, so the resulting shares would not multiply.
+    #[test]
+    fn test_ole_p256_receiver_choices_exceed_prime() {
+        let count = 1;
+        let mut rng = StdRng::seed_from_u64(0);
+
+        // All-ones except the low bit is `2^256 - 2 >= p` and is not
+        // bit-palindromic, so it also catches bit-order mistakes.
+        let mut choices = vec![true; count * P256::BIT_SIZE];
+        choices[0] = false;
+
+        let mut ideal_rot = IdealROT::new(Block::random(&mut rng));
+        ideal_rot.set_receiver_choices(choices);
+
+        let rot_sender = AnySender::new(ideal_rot.clone());
+        let rot_receiver = AnyReceiver::new(ideal_rot);
+
+        let (mut sender, mut receiver) = (
+            Sender::<_, P256>::new(Block::random(&mut rng), rot_sender),
+            Receiver::<_, P256>::new(rot_receiver),
+        );
+
+        sender.alloc(count).unwrap();
+        receiver.alloc(count).unwrap();
+
+        sender.rot_mut().rot_mut().flush().unwrap();
+
+        let msg = sender.send().unwrap();
+        receiver.recv(msg).unwrap();
+
+        let ROLESenderOutput {
+            shares: sender_shares,
+            ..
+        } = sender.try_send_role(count).unwrap();
+        let ROLEReceiverOutput {
+            shares: receiver_shares,
+            ..
+        } = receiver.try_recv_role(count).unwrap();
+
+        sender_shares
+            .into_iter()
+            .zip(receiver_shares)
+            .for_each(|(s, r)| assert_ole(s, r));
     }
 
     fn test_ole<F: Field>()

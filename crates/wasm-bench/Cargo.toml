@@ -1,7 +1,10 @@
 [package]
 name = "mpz-wasm-bench"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2024"
+
+[lints]
+workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -21,15 +24,15 @@ mpz-ot-core = { workspace = true, features = ["rayon"] }
 mpz-vm-core = { workspace = true }
 blake3 = { workspace = true }
 
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
-getrandom = { version = "0.3", features = ["wasm_js"] }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+js-sys = { workspace = true }
+getrandom = { workspace = true, features = ["wasm_js"] }
 rand = { workspace = true }
 futures = { workspace = true }
-web-spawn = { version = "0.2", features = ["no-bundler"] }
+web-spawn = { workspace = true, features = ["no-bundler"] }
 rayon = { workspace = true }
-web-sys = { version = "0.3", features = [
+web-sys = { workspace = true, features = [
     "console",
     "Window",
     "Performance",
@@ -38,22 +41,22 @@ web-sys = { version = "0.3", features = [
     "WorkerType",
 ] }
 serio = { workspace = true }
-aes-wasm = "0.1"
+aes-wasm = { workspace = true }
 aes = { workspace = true }
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3"
+wasm-bindgen-test = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-chromiumoxide = { version = "0.7", features = ["tokio-runtime"] }
+chromiumoxide = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "net", "io-util"] }
 serde = { workspace = true, features = ["derive"] }
-serde_json = "1.0"
+serde_json = { workspace = true }
 futures = { workspace = true }
-hyper = { version = "1.8", features = ["server", "http1"] }
-hyper-util = { version = "0.1", features = ["tokio"] }
-http-body-util = "0.1"
-mime_guess = "2.0"
+hyper = { workspace = true, features = ["server", "http1"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+http-body-util = { workspace = true }
+mime_guess = { workspace = true }
 
 [[bin]]
 name = "wasm-bench-runner"

@@ -8,6 +8,8 @@ pub(crate) use sender::{SPCOTSender, SPCOTSenderError};
 
 #[cfg(test)]
 use mpz_core::Block;
+#[cfg(test)]
+use rand::RngExt as _;
 
 #[cfg(test)]
 /// Generates ideal SPCOT outputs.
@@ -44,7 +46,7 @@ mod tests {
         test::assert_spcot,
     };
     use mpz_core::utils::slices_from_lengths;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{Rng, RngExt, SeedableRng, rngs::StdRng};
 
     fn execute<R: Rng>(
         rng: &mut R,

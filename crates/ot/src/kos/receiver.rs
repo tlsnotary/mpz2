@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rand::Rng;
+use rand::RngExt;
 use serio::{SinkExt as _, stream::IoStreamExt};
 
 use mpz_common::{Context, ContextError, Flush, future::MaybeDone};

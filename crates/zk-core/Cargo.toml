@@ -1,6 +1,6 @@
 [package]
 name = "mpz-zk-core"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 edition = "2024"
 
 [lints]
@@ -14,7 +14,6 @@ rayon = ["dep:rayon", "mpz-core/rayon", "blake3/rayon", "itybity/rayon"]
 mpz-core = { workspace = true }
 mpz-circuits = { workspace = true }
 mpz-memory-core = { workspace = true }
-mpz-vm-core = { workspace = true }
 
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

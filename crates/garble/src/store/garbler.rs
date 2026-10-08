@@ -130,18 +130,20 @@ where
             let expected_size = self.core.flush_view().evaluator_flush_size();
             let (flush, ()) = ctx
                 .try_join(
-                    async move |ctx| {
-                        ctx.io_mut().with_limit(flush_size).send(flush).await?;
+                    move |ctx| {
+                        Box::pin(async move {
+                            ctx.io_mut().with_limit(flush_size).send(flush).await?;
 
-                        // Adjust the limit to expected size.
-                        let limit = ctx.io().limit().max(expected_size);
-                        ctx.io_mut()
-                            .with_limit(limit)
-                            .expect_next()
-                            .await
-                            .map_err(Error::from)
+                            // Adjust the limit to expected size.
+                            let limit = ctx.io().limit().max(expected_size);
+                            ctx.io_mut()
+                                .with_limit(limit)
+                                .expect_next()
+                                .await
+                                .map_err(Error::from)
+                        })
                     },
-                    async move |ctx| cot.flush(ctx).await.map_err(Error::cot),
+                    move |ctx| Box::pin(async move { cot.flush(ctx).await.map_err(Error::cot) }),
                 )
                 .await??;
 

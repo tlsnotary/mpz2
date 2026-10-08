@@ -82,8 +82,9 @@ impl MPCOTReceiver<state::Initialized> {
 
                         idxs.push(pos);
                     } else {
-                        // Acc.to p.10 "if T[j] is empty ... then the receiver's input p_j can
-                        // point to this extra cell".
+                        // Acc.to p.10 "if T[j] is empty ... then the receiver's
+                        // input p_j can point to this
+                        // extra cell".
                         idxs.push(bucket_length);
                     }
 
@@ -256,7 +257,7 @@ use state::{Extension, Initialized};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     #[test]
     fn test_indices_not_regular() {
