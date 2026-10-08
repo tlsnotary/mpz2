@@ -12,9 +12,7 @@ pub(crate) struct MPCOTReceiver<T: state::State = Initialized> {
 impl MPCOTReceiver {
     /// Creates a new Receiver.
     pub(crate) fn new() -> Self {
-        MPCOTReceiver {
-            state: Initialized,
-        }
+        MPCOTReceiver { state: Initialized }
     }
 }
 
@@ -153,7 +151,7 @@ use state::{Extension, Initialized};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     #[test]
     fn test_indices_not_regular() {

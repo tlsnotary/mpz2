@@ -12,9 +12,7 @@ pub(crate) struct MPCOTSender<T: state::State = Initialized> {
 impl MPCOTSender {
     /// Creates a new Sender.
     pub(crate) fn new() -> Self {
-        MPCOTSender {
-            state: Initialized,
-        }
+        MPCOTSender { state: Initialized }
     }
 }
 

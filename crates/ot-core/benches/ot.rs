@@ -95,32 +95,32 @@ fn ferret(c: &mut Criterion) {
             let config = FerretConfig::builder().build().unwrap();
 
             b.iter(|| {
-                    let cot = IdealRCOT::new(rng.random(), delta);
-                    let mut sender = ferret::Sender::new(rng.random(), config.clone(), cot.clone());
-                    let mut receiver = ferret::Receiver::new(rng.random(), config.clone(), cot);
+                let cot = IdealRCOT::new(rng.random(), delta);
+                let mut sender = ferret::Sender::new(rng.random(), config.clone(), cot.clone());
+                let mut receiver = ferret::Receiver::new(rng.random(), config.clone(), cot);
 
-                    let init = receiver.initialize().unwrap();
-                    sender.initialize(init).unwrap();
-                    sender.alloc_bootstrap().unwrap();
-                    receiver.alloc_bootstrap().unwrap();
-                    sender.acquire_cot().flush().unwrap();
-                    receiver.acquire_cot().flush().unwrap();
-                    sender.alloc(n).unwrap();
-                    receiver.alloc(n).unwrap();
+                let init = receiver.initialize().unwrap();
+                sender.initialize(init).unwrap();
+                sender.alloc_bootstrap().unwrap();
+                receiver.alloc_bootstrap().unwrap();
+                sender.acquire_cot().flush().unwrap();
+                receiver.acquire_cot().flush().unwrap();
+                sender.alloc(n).unwrap();
+                receiver.alloc(n).unwrap();
 
-                    while sender.wants_extend() && receiver.wants_extend() {
-                        sender.start_extend().unwrap();
-                        let msg = receiver.start_extend().unwrap();
-                        let msg = sender.extend(msg).unwrap();
-                        let msg = receiver.extend(msg).unwrap();
-                        let msg = sender.check(msg).unwrap();
-                        receiver.finish_extend(msg).unwrap();
-                        sender.finish_extend().unwrap();
-                    }
+                while sender.wants_extend() && receiver.wants_extend() {
+                    sender.start_extend().unwrap();
+                    let msg = receiver.start_extend().unwrap();
+                    let msg = sender.extend(msg).unwrap();
+                    let msg = receiver.extend(msg).unwrap();
+                    let msg = sender.check(msg).unwrap();
+                    receiver.finish_extend(msg).unwrap();
+                    sender.finish_extend().unwrap();
+                }
 
-                    black_box((sender, receiver));
-                })
-            });
+                black_box((sender, receiver));
+            })
+        });
     }
 }
 

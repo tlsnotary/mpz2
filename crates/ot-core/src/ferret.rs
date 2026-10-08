@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn test_ferret() {
-        use rand::Rng;
+        use rand::RngExt;
 
         let mut rng = StdRng::seed_from_u64(0);
         let delta = rng.random();
