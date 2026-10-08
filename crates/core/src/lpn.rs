@@ -119,16 +119,6 @@ impl<const D: usize> LpnEncoder<D> {
     }
 }
 
-/// LPN type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LpnType {
-    /// LPN with a uniform error vector.
-    Uniform,
-    /// LPN with an error vector that has non-zero entries distributed
-    /// regularly.
-    Regular,
-}
-
 /// Lpn paramters
 #[derive(Copy, Clone, Debug)]
 pub struct LpnParameters {
@@ -140,34 +130,26 @@ pub struct LpnParameters {
     pub t: usize,
 }
 
-/// Samples indices for non-zero entries in the error vector.
+/// Samples indices for non-zero entries in a regular error vector.
+///
+/// The error vector is divided into `count` equal-length intervals, with a
+/// single non-zero entry sampled uniformly within each interval.
 ///
 /// # Panics
 ///
-/// Panics if `ty` is `Regular` and `len` is not a multiple of `count`.
+/// Panics if `len` is not a multiple of `count`.
 ///
 /// # Arguments
 ///
 /// * `rng` - Random number generator.
-/// * `ty` - LPN type.
 /// * `len` - Length of the error vector.
 /// * `count` - Hamming weight.
-pub fn sample_error_indices<R: Rng>(
-    rng: &mut R,
-    ty: LpnType,
-    len: usize,
-    count: usize,
-) -> Vec<usize> {
-    match ty {
-        LpnType::Uniform => rand::seq::index::sample(rng, len, count).into_vec(),
-        LpnType::Regular => {
-            assert_eq!(len % count, 0);
-            let step = len / count;
-            (0..count)
-                .map(|i| rng.random_range(i * step..(i + 1) * step))
-                .collect()
-        }
-    }
+pub fn sample_error_indices<R: Rng>(rng: &mut R, len: usize, count: usize) -> Vec<usize> {
+    assert_eq!(len % count, 0);
+    let step = len / count;
+    (0..count)
+        .map(|i| rng.random_range(i * step..(i + 1) * step))
+        .collect()
 }
 
 impl LpnParameters {

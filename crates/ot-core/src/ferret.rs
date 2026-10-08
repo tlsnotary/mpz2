@@ -1,15 +1,12 @@
 //! An implementation of the [`Ferret`](https://eprint.iacr.org/2020/924.pdf) protocol.
 
 mod config;
-pub(crate) mod cuckoo;
 pub(crate) mod mpcot;
 mod receiver;
 mod sender;
 pub(crate) mod spcot;
 
-pub use config::{
-    FerretConfig, FerretConfigBuilder, FerretConfigBuilderError, REGULAR_PARAMS, UNIFORM_PARAMS,
-};
+pub use config::{FerretConfig, FerretConfigBuilder, FerretConfigBuilderError, REGULAR_PARAMS};
 pub use receiver::{Receiver, ReceiverError};
 pub use sender::{Sender, SenderError};
 
@@ -59,14 +56,10 @@ mod tests {
         rcot::{RCOTReceiver, RCOTReceiverOutput, RCOTSender, RCOTSenderOutput},
         test::assert_cot,
     };
-    use mpz_core::lpn::LpnType;
     use rand::{SeedableRng, rngs::StdRng};
-    use rstest::*;
 
-    #[rstest]
-    #[case::uniform(LpnType::Uniform)]
-    #[case::regular(LpnType::Regular)]
-    fn test_ferret(#[case] lpn_type: LpnType) {
+    #[test]
+    fn test_ferret() {
         use rand::RngExt;
 
         let mut rng = StdRng::seed_from_u64(0);
@@ -75,8 +68,7 @@ mod tests {
 
         let mut builder = FerretConfig::builder();
 
-        builder.lpn_type(lpn_type);
-        builder.param_selector(|_, _, _| TEST_PARAMS);
+        builder.param_selector(|_, _| TEST_PARAMS);
 
         let config = builder.build().unwrap();
         let count = TEST_PARAMS.n * 2;

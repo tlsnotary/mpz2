@@ -6,7 +6,6 @@ mod sender;
 pub use receiver::{Receiver, ReceiverError};
 pub use sender::{Sender, SenderError};
 
-pub use mpz_core::lpn::LpnType;
 pub use mpz_ot_core::ferret::{FerretConfig, FerretConfigBuilder, FerretConfigBuilderError};
 
 #[cfg(test)]
@@ -15,13 +14,9 @@ mod tests {
     use crate::ideal::rcot::ideal_rcot;
     use mpz_core::lpn::LpnParameters;
     use rand::{RngExt, SeedableRng, rngs::StdRng};
-    use rstest::*;
 
-    #[rstest]
-    #[case::uniform(LpnType::Uniform)]
-    #[case::regular(LpnType::Regular)]
     #[tokio::test]
-    async fn test_ferret(#[case] lpn_type: LpnType) {
+    async fn test_ferret() {
         use crate::test::test_rcot;
 
         let mut rng = StdRng::seed_from_u64(0);
@@ -31,8 +26,7 @@ mod tests {
 
         let mut builder = FerretConfig::builder();
 
-        builder.lpn_type(lpn_type);
-        builder.param_selector(|_, _, _| LpnParameters {
+        builder.param_selector(|_, _| LpnParameters {
             n: 9600,
             k: 1220,
             t: 600,

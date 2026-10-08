@@ -8,23 +8,19 @@ pub(crate) use sender::{MPCOTSender, MPCOTSenderError, state as sender_state};
 mod tests {
     use super::*;
     use crate::ferret::spcot::spcot;
-    use mpz_core::lpn::{LpnType, sample_error_indices};
+    use mpz_core::lpn::sample_error_indices;
     use rand::{RngExt, SeedableRng, rngs::StdRng};
-    use rstest::*;
 
-    #[rstest]
-    #[case::uniform(LpnType::Uniform)]
-    #[case::regular(LpnType::Regular)]
-    fn test_mpcot(#[case] lpn_type: LpnType) {
+    #[test]
+    fn test_mpcot() {
         let mut rng = StdRng::seed_from_u64(0);
         let delta = rng.random();
-        let cuckoo_seed = rng.random();
 
-        let sender = MPCOTSender::new(cuckoo_seed, lpn_type);
-        let receiver = MPCOTReceiver::new(cuckoo_seed, lpn_type);
+        let sender = MPCOTSender::new();
+        let receiver = MPCOTReceiver::new();
 
         let n = 10;
-        let indices = sample_error_indices(&mut rng, lpn_type, n, 5);
+        let indices = sample_error_indices(&mut rng, n, 5);
 
         let (sender, sender_lengths) = sender.start_extend(indices.len(), 10).unwrap();
         let (receiver, receiver_lengths, receiver_idxs) =
