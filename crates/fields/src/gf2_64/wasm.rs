@@ -55,10 +55,7 @@ pub(super) fn double_inner_product(a: &[Gf2_64], b: &[Gf2_64], c: &[Gf2_64]) -> 
     for ((x, y), z) in a.iter().zip(b.iter()).zip(c.iter()) {
         let (xy_lo, xy_hi) = bmul64_full(x.0, y.0);
         let xy = reduce64(xy_lo, xy_hi);
-        let v = bmul64_lo_v128(
-            u64x2(xy, rev64(xy)),
-            u64x2(z.0, rev64(z.0)),
-        );
+        let v = bmul64_lo_v128(u64x2(xy, rev64(xy)), u64x2(z.0, rev64(z.0)));
         acc = v128_xor(acc, v);
     }
     let lo = u64x2_extract_lane::<0>(acc);
