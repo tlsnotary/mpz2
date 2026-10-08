@@ -196,26 +196,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
-name = "bytemuck"
-version = "1.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
-dependencies = [
- "bytemuck_derive",
-]
-
-[[package]]
-name = "bytemuck_derive"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a1f896587b6f2c069c73d2f0913e2d590c3990285cd2f0b6aa02b786b4c679c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.5",
-]
-
-[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -388,13 +368,13 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 name = "clmul"
 version = "0.1.0-alpha.6"
 dependencies = [
- "bytemuck",
  "cfg-if",
  "cpufeatures 0.3.1",
  "criterion",
  "rand 0.10.2",
  "rand_chacha 0.10.0",
  "rand_core 0.10.1",
+ "zerocopy",
 ]
 
 [[package]]
@@ -1388,7 +1368,6 @@ dependencies = [
  "bcs",
  "bitvec",
  "blake3",
- "bytemuck",
  "cfg-if",
  "cipher",
  "clmul",
@@ -1404,6 +1383,7 @@ dependencies = [
  "rstest",
  "serde",
  "thiserror",
+ "zerocopy",
 ]
 
 [[package]]
@@ -1601,7 +1581,6 @@ version = "0.1.0-alpha.6"
 dependencies = [
  "aes",
  "blake3",
- "bytemuck",
  "cfg-if",
  "cipher",
  "clmul",

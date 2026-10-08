@@ -10,9 +10,7 @@ use itybity::ToBits;
 use mpz_common::future::{MaybeDone, Sender as OutputSender, new_output};
 use mpz_core::{Block, prg::Prg};
 
-use rand::{Rng as _, SeedableRng, rng};
-
-use rand_core::RngCore;
+use rand::{Rng as _, RngExt, SeedableRng, rng};
 use zerocopy::FromBytes;
 
 cfg_if::cfg_if! {
