@@ -18,7 +18,6 @@ test-utils = ["mpz-ot-core/test-utils", "mpz-common/test-utils"]
 [dependencies]
 mpz-core.workspace = true
 mpz-common = { workspace = true, features = ["sync"] }
-mpz-cointoss.workspace = true
 mpz-ot-core.workspace = true
 
 async-trait.workspace = true
@@ -26,10 +25,8 @@ futures.workspace = true
 rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
-p256 = { workspace = true, optional = true }
 thiserror.workspace = true
 itybity.workspace = true
-enum-try-as-inner.workspace = true
 opaque-debug.workspace = true
 serde = { workspace = true, optional = true }
 serio.workspace = true

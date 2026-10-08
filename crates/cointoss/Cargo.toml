@@ -3,6 +3,9 @@ name = "mpz-cointoss"
 version = "0.1.0-alpha.6"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 mpz-core.workspace = true
 mpz-common = { workspace = true }

@@ -10,8 +10,7 @@ name = "mpz_core"
 workspace = true
 
 [features]
-default = ["cointoss"]
-cointoss = ["dep:rand_chacha"]
+default = []
 rayon = ["dep:rayon"]
 
 [dependencies]
@@ -20,7 +19,6 @@ cipher.workspace = true
 blake3.workspace = true
 clmul.workspace = true
 rand.workspace = true
-rand_chacha = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 once_cell.workspace = true
@@ -37,6 +35,7 @@ bitvec = { workspace = true, features = ["serde"] }
 [dev-dependencies]
 rstest.workspace = true
 criterion.workspace = true
+rand_chacha.workspace = true
 
 [[bench]]
 name = "aes"

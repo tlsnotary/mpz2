@@ -21,7 +21,6 @@ clmul.workspace = true
 matrix-transpose.workspace = true
 
 aes.workspace = true
-ctr.workspace = true
 blake3 = { workspace = true, features = ["serde"] }
 cipher.workspace = true
 rand.workspace = true
@@ -36,7 +35,6 @@ itybity.workspace = true
 opaque-debug.workspace = true
 cfg-if.workspace = true
 bytemuck = { workspace = true, features = ["derive"] }
-enum-try-as-inner.workspace = true
 futures = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 zerocopy = { workspace = true }
