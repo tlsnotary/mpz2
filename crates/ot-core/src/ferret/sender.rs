@@ -15,6 +15,9 @@ use mpz_core::{
 
 use mpz_fields::gf2_128::Gf2_128;
 
+#[cfg(feature = "emp")]
+use crate::ferret::emp;
+
 use crate::{
     TransferId,
     ferret::{
@@ -54,12 +57,9 @@ pub struct Sender<COT> {
     pending: usize,
     state: State,
     spcot: SPCOTSender,
-    /// Session id for the compat derivations.
+    /// All emp-only state; see [`emp::EmpSender`].
     #[cfg(feature = "emp")]
-    sid: Block,
-    /// Next round's bases (this round's refill trees).
-    #[cfg(feature = "emp")]
-    next_keys: Vec<Gf2_128>,
+    pub(crate) emp: emp::EmpSender,
 }
 
 impl<COT> Sender<COT>
@@ -82,16 +82,14 @@ where
             state: State::Extend,
             spcot: SPCOTSender::new(delta),
             #[cfg(feature = "emp")]
-            sid: Block::ZERO,
-            #[cfg(feature = "emp")]
-            next_keys: Vec::new(),
+            emp: emp::EmpSender::new(),
         }
     }
 
     /// Sets the session id for the compat derivations.
     #[cfg(feature = "emp")]
     pub fn set_sid(&mut self, sid: Block) {
-        self.sid = sid;
+        self.emp.sid = sid;
     }
 
     /// Returns a lock on the inner COT sender.
@@ -129,7 +127,7 @@ where
 
         // The previous round's refill trees are this round's bases.
         #[cfg(feature = "emp")]
-        self.keys.append(&mut self.next_keys);
+        self.emp.begin_round(&mut self.keys);
 
         // If available COTs are insufficient, we bootstrap from the inner COT instance.
         if self.wants_bootstrap() {
@@ -256,7 +254,7 @@ where
         let lpn_seed = {
             let _ = lpn_seed_coin;
             // From the session id.
-            crate::ferret::emp_compat::lpn_seed(self.sid)
+            crate::ferret::emp::lpn_seed(self.emp.sid)
         };
 
         let vs = &self.keys[self.keys.len() - params.n..];
@@ -302,14 +300,8 @@ where
         // The last `refill_trees` trees seed the next round: move their
         // results out of the output buffer.
         #[cfg(feature = "emp")]
-        {
-            let plan = self.config.round_plan(params);
-            let refill = plan.refill_trees * (params.n / params.t);
-            let at = self.keys.len() - refill;
-            self.next_keys = self.keys.split_off(at);
-            // Keep the first `M` of the refill output.
-            self.next_keys.truncate(plan.cost);
-        }
+        self.emp
+            .take_refill(&mut self.keys, self.config.round_plan(params), params);
 
         let missing = self.alloc.saturating_sub(self.available());
         if missing == 0 {
