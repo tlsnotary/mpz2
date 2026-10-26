@@ -1,4 +1,4 @@
-use blake3::{Hash, Hasher, hash};
+use blake3::{Hash, hash};
 use cfg_if::cfg_if;
 use itybity::FromBitIterator;
 use rand::{Rng, RngExt, SeedableRng};
@@ -7,7 +7,6 @@ use rayon::prelude::*;
 
 use mpz_core::{Block, bitvec::BitVec, cggm, utils::slices_from_lengths_mut};
 use mpz_fields::{Field, gf2_128::Gf2_128};
-use zerocopy::IntoBytes;
 
 use crate::ferret::{
     config::CSP,
@@ -22,17 +21,12 @@ pub(crate) struct SPCOTSender {
     /// Total length of the SPCOT vectors pending the consistency check.
     pending: usize,
     delta: Block,
-    transcript: Hasher,
 }
 
 impl SPCOTSender {
     /// Creates a new SPCOT sender.
     pub(crate) fn new(delta: Block) -> Self {
-        Self {
-            pending: 0,
-            delta,
-            transcript: Hasher::new(),
-        }
+        Self { pending: 0, delta }
     }
 
     #[cfg(test)]
@@ -135,10 +129,6 @@ impl SPCOTSender {
             }
         });
 
-        let masks_len = masks.len();
-        self.transcript
-            .update(&masks.as_raw_slice().as_bytes()[..masks_len.div_ceil(8)]);
-        self.transcript.update(cs.as_bytes());
         self.pending += len;
 
         Ok(cs)
@@ -156,6 +146,7 @@ impl SPCOTSender {
         keys: &[Gf2_128],
         masks: &BitVec,
         vs: &[Gf2_128],
+        chi_seed: Block,
     ) -> Result<Hash> {
         if keys.len() != CSP {
             return Err(ErrorRepr::KeyCount {
@@ -186,15 +177,13 @@ impl SPCOTSender {
         let y = Gf2_128::inner_product(keys, MONOMIAL) + Gf2_128::from(self.delta) * x;
 
         // Computes V = Y + Σₐ χₐ ⋅ vₐ
-        let seed = *self.transcript.finalize().as_bytes();
-        let (fold, _) = fold_chis(Block::try_from(&seed[0..16]).unwrap(), vs, &[]);
+        let (fold, _) = fold_chis(chi_seed, vs, &[]);
         let v = y + fold;
 
         // Computes H'(V)
         let hashed_v = hash(&Block::from(v).to_bytes());
 
         self.pending = 0;
-        self.transcript.reset();
 
         Ok(hashed_v)
     }

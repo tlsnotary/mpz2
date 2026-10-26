@@ -1,6 +1,7 @@
-use blake3::{Hash, Hasher, hash};
+use blake3::{Hash, hash};
 use cfg_if::cfg_if;
 use itybity::ToBits;
+use rand::Rng;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 
@@ -11,13 +12,12 @@ use mpz_core::{
     utils::{slices_from_lengths, slices_from_lengths_mut},
 };
 use mpz_fields::{Field, gf2_128::Gf2_128};
-use zerocopy::IntoBytes;
 
 use crate::{
     Derandomize,
     ferret::{
         config::CSP,
-        spcot::{MONOMIAL, fold_chis},
+        spcot::{CheckStart, MONOMIAL, fold_chis},
     },
 };
 
@@ -36,7 +36,6 @@ pub(crate) struct SPCOTReceiver {
     /// Chosen indices of the SPCOT vectors pending the consistency check.
     indices: Vec<usize>,
     check: Option<Check>,
-    transcript: Hasher,
 }
 
 impl SPCOTReceiver {
@@ -46,7 +45,6 @@ impl SPCOTReceiver {
             lengths: Vec::new(),
             indices: Vec::new(),
             check: None,
-            transcript: Hasher::new(),
         }
     }
 
@@ -92,10 +90,6 @@ impl SPCOTReceiver {
                 .zip(masks)
                 .map(|(b, m)| !b ^ m),
         );
-
-        let flip_len = flip.len();
-        self.transcript
-            .update(&flip.as_raw_slice().as_bytes()[..flip_len.div_ceil(8)]);
 
         Ok(Derandomize { flip })
     }
@@ -186,7 +180,6 @@ impl SPCOTReceiver {
                 .to_ne_bytes();
         });
 
-        self.transcript.update(cs.as_bytes());
         self.lengths.extend_from_slice(log2_lengths);
         self.indices.extend_from_slice(idxs);
 
@@ -200,12 +193,13 @@ impl SPCOTReceiver {
     /// * `macs` - COT MACs.
     /// * `masks` - Random COT choice masks.
     /// * `ws` - The accumulated SPCOT vectors.
-    pub(crate) fn start_check(
+    pub(crate) fn start_check<R: Rng + ?Sized>(
         &mut self,
+        rng: &mut R,
         macs: &[Gf2_128],
         masks: &[bool],
         ws: &[Gf2_128],
-    ) -> Result<Derandomize> {
+    ) -> Result<CheckStart> {
         if self.check.is_some() {
             return Err(ErrorRepr::State("check already started".to_string()).into());
         } else if macs.len() != CSP {
@@ -240,8 +234,8 @@ impl SPCOTReceiver {
         }
 
         // Computes Σₐ χₐ ⋅ wₐ and the sum of the χ at the chosen indices.
-        let seed = *self.transcript.finalize().as_bytes();
-        let (fold, sum_chi_alpha) = fold_chis(Block::try_from(&seed[0..16]).unwrap(), ws, &alphas);
+        let chi_seed: Block = rng.random();
+        let (fold, sum_chi_alpha) = fold_chis(chi_seed, ws, &alphas);
 
         let x_prime = BitVec::from_iter(
             sum_chi_alpha
@@ -256,7 +250,10 @@ impl SPCOTReceiver {
 
         self.check = Some(Check { w });
 
-        Ok(Derandomize { flip: x_prime })
+        Ok(CheckStart {
+            derandomize: Derandomize { flip: x_prime },
+            chi_seed,
+        })
     }
 
     /// Finishes the consistency check.
@@ -274,7 +271,6 @@ impl SPCOTReceiver {
 
         self.lengths.clear();
         self.indices.clear();
-        self.transcript.reset();
 
         Ok(())
     }

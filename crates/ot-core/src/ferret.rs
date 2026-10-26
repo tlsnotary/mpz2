@@ -66,6 +66,8 @@ pub struct ReceiverExtend {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReceiverCheck {
     derandomize: Derandomize,
+    /// Seed for the consistency check's random linear combination.
+    chi_seed: Block,
     /// Decommitment to the receiver's contribution to the LPN seed
     /// coin-toss.
     lpn_seed_decommitment: cointoss_msgs::SenderPayload,

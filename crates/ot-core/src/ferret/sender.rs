@@ -214,6 +214,7 @@ where
     pub fn check(&mut self, msg: ReceiverCheck) -> Result<SenderCheck> {
         let ReceiverCheck {
             derandomize,
+            chi_seed,
             lpn_seed_decommitment,
         } = msg;
 
@@ -230,7 +231,9 @@ where
         let lpn_seed = cointoss.finalize(lpn_seed_decommitment)?[0];
 
         let vs = &self.keys[self.keys.len() - params.n..];
-        let hashed_v = self.spcot.check(&check_keys, &derandomize.flip, vs)?;
+        let hashed_v = self
+            .spcot
+            .check(&check_keys, &derandomize.flip, vs, chi_seed)?;
 
         self.state = State::Finish(Finish {
             params,

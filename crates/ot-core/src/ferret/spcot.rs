@@ -6,6 +6,17 @@ mod sender;
 pub(crate) use receiver::{SPCOTReceiver, SPCOTReceiverError};
 pub(crate) use sender::{SPCOTSender, SPCOTSenderError};
 
+use crate::Derandomize;
+
+/// The receiver's half of the consistency check handshake.
+///
+/// Carries the derandomization bits it will send and the seed it sampled for
+/// the check's random linear combination.
+pub(crate) struct CheckStart {
+    pub(crate) derandomize: Derandomize,
+    pub(crate) chi_seed: Block,
+}
+
 use cfg_if::cfg_if;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -242,8 +253,10 @@ mod tests {
         let keys: Vec<Gf2_128> = keys.iter().map(|&key| key.into()).collect();
         let macs: Vec<Gf2_128> = macs.iter().map(|&mac| mac.into()).collect();
 
-        let derandomize = receiver.start_check(&macs, &masks, &ws).unwrap();
-        let hashed_v = sender.check(&keys, &derandomize.flip, &vs).unwrap();
+        let start = receiver.start_check(rng, &macs, &masks, &ws).unwrap();
+        let hashed_v = sender
+            .check(&keys, &start.derandomize.flip, &vs, start.chi_seed)
+            .unwrap();
         receiver.check(hashed_v).unwrap();
 
         assert!(!sender.wants_check());

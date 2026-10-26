@@ -19,7 +19,7 @@ use crate::{
         FerretConfig, ReceiverCheck, ReceiverExtend, SenderCheck, SenderExtend,
         config::CSP,
         mpcot::{self, MPCOTError},
-        spcot::{SPCOTReceiver, SPCOTReceiverError},
+        spcot::{CheckStart, SPCOTReceiver, SPCOTReceiverError},
         split_off_blocks,
     },
     rcot::{RCOTReceiver, RCOTReceiverOutput},
@@ -218,9 +218,15 @@ where
             &mut self.macs[start..],
         )?;
 
-        let derandomize = self
-            .spcot
-            .start_check(&check_macs, &check_masks, &self.macs[start..])?;
+        let CheckStart {
+            derandomize,
+            chi_seed,
+        } = self.spcot.start_check(
+            &mut self.prg,
+            &check_macs,
+            &check_masks,
+            &self.macs[start..],
+        )?;
 
         self.state = State::Finish(Finish {
             params,
@@ -231,6 +237,7 @@ where
 
         Ok(ReceiverCheck {
             derandomize,
+            chi_seed,
             lpn_seed_decommitment,
         })
     }
