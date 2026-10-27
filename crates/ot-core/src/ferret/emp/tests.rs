@@ -38,7 +38,7 @@ fn golden_block(name: &str) -> Block {
 /// adapters. Checks their shapes.
 #[test]
 fn test_emp_wire_shapes() {
-    use rand::Rng;
+    use rand::RngExt;
 
     let mut rng = StdRng::seed_from_u64(0);
     let delta = rng.random();

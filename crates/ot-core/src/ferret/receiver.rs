@@ -11,7 +11,7 @@ use mpz_core::{
     prg::Prg,
 };
 
-use mpz_fields::gf2_128::Gf2_128;
+use mpz_fields::{Field, gf2_128::Gf2_128};
 
 #[cfg(not(feature = "emp"))]
 use mpz_core::lpn::sample_error_indices;
@@ -243,7 +243,7 @@ where
         // SPCOT vectors (Step 5 in Figure 7), which the SPCOT writes
         // directly into the tail of the MACs buffer.
         let start = self.macs.len();
-        self.macs.resize(start + params.n, Gf2_128::ZERO);
+        self.macs.resize(start + params.n, Gf2_128::zero());
         self.pending = params.n;
 
         self.spcot.extend(

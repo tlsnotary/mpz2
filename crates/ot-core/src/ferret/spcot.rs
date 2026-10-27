@@ -66,9 +66,9 @@ pub(crate) fn fold_chis(seed: Block, values: &[Gf2_128], picks: &[usize]) -> (Gf
         let hi = picks.partition_point(|&p| p < start + chunk.len());
         let mut picks = picks[lo..hi].iter().peekable();
 
-        let mut folded = Gf2_128::ZERO;
-        let mut picked = Gf2_128::ZERO;
-        let mut chis = [Gf2_128::ZERO; CHI_BATCH_SIZE];
+        let mut folded = Gf2_128::zero();
+        let mut picked = Gf2_128::zero();
+        let mut chis = [Gf2_128::zero(); CHI_BATCH_SIZE];
         for (j, values) in chunk.chunks(CHI_BATCH_SIZE).enumerate() {
             let base = start + j * CHI_BATCH_SIZE;
             let chis = &mut chis[..values.len()];
@@ -105,7 +105,7 @@ pub(crate) fn fold_chis(seed: Block, values: &[Gf2_128], picks: &[usize]) -> (Gf
                     .enumerate()
                     .map(fold_chunk)
                     .reduce(
-                        || (Gf2_128::ZERO, Gf2_128::ZERO),
+                        || (Gf2_128::zero(), Gf2_128::zero()),
                         |a, b| (a.0 + b.0, a.1 + b.1),
                     )
             } else {
@@ -113,7 +113,7 @@ pub(crate) fn fold_chis(seed: Block, values: &[Gf2_128], picks: &[usize]) -> (Gf
                     .chunks(CHI_CHUNK_SIZE)
                     .enumerate()
                     .map(fold_chunk)
-                    .fold((Gf2_128::ZERO, Gf2_128::ZERO), |a, b| {
+                    .fold((Gf2_128::zero(), Gf2_128::zero()), |a, b| {
                         (a.0 + b.0, a.1 + b.1)
                     })
             }
@@ -175,7 +175,7 @@ mod tests {
         let count = 2 * CHI_CHUNK_SIZE + 3 * CHI_BATCH_SIZE + 42;
 
         // Reference: materialize the challenges with the PRG.
-        let mut chis = vec![Gf2_128::ZERO; count];
+        let mut chis = vec![Gf2_128::zero(); count];
         for (i, chunk) in chis.chunks_mut(CHI_CHUNK_SIZE).enumerate() {
             let mut prg = Prg::from_seed(seed);
             prg.set_stream_id(i as u64);
@@ -193,13 +193,13 @@ mod tests {
         ];
 
         let expected_fold = Gf2_128::inner_product(&chis, &values);
-        let expected_picked = picks.iter().fold(Gf2_128::ZERO, |acc, &p| acc + chis[p]);
+        let expected_picked = picks.iter().fold(Gf2_128::zero(), |acc, &p| acc + chis[p]);
 
         assert_eq!(
             fold_chis(seed, &values, &picks),
             (expected_fold, expected_picked)
         );
-        assert_eq!(fold_chis(seed, &[], &[]), (Gf2_128::ZERO, Gf2_128::ZERO));
+        assert_eq!(fold_chis(seed, &[], &[]), (Gf2_128::zero(), Gf2_128::zero()));
     }
 
     fn execute<R: Rng>(
@@ -227,8 +227,8 @@ mod tests {
         let derandomize = receiver.derandomize(lengths, idxs, &masks).unwrap();
 
         let total: usize = lengths.iter().map(|length| 1 << length).sum();
-        let mut vs = vec![Gf2_128::ZERO; total];
-        let mut ws = vec![Gf2_128::ZERO; total];
+        let mut vs = vec![Gf2_128::zero(); total];
+        let mut ws = vec![Gf2_128::zero(); total];
 
         let keys: Vec<Gf2_128> = keys.iter().map(|&key| key.into()).collect();
         let macs: Vec<Gf2_128> = macs.iter().map(|&mac| mac.into()).collect();

@@ -1,7 +1,7 @@
 use blake3::{Hash, hash};
 use cfg_if::cfg_if;
 use itybity::ToBits;
-use rand::Rng;
+use rand::{Rng, RngExt};
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 

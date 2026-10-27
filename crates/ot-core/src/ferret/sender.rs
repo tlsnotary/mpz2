@@ -13,7 +13,7 @@ use mpz_core::{
     prg::Prg,
 };
 
-use mpz_fields::gf2_128::Gf2_128;
+use mpz_fields::{Field, gf2_128::Gf2_128};
 
 #[cfg(feature = "emp")]
 use crate::ferret::emp;
@@ -198,7 +198,7 @@ where
         // SPCOT vectors (Step 5 in Figure 7), which the SPCOT writes
         // directly into the tail of the keys buffer.
         let start = self.keys.len();
-        self.keys.resize(start + params.n, Gf2_128::ZERO);
+        self.keys.resize(start + params.n, Gf2_128::zero());
         self.pending = params.n;
 
         let cs = self.spcot.extend(

@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use mpz_common::future::{MaybeDone, Sender, new_output};
 use mpz_core::{Block, prg::Prg};
-use rand::{RngCore, SeedableRng};
+use rand::{Rng, SeedableRng};
 
 use crate::{
     TransferId,

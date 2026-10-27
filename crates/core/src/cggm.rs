@@ -173,7 +173,7 @@ pub fn expand_punctured(idx: usize, sums: &[[u8; 16]], leaves: &mut [[u8; 16]]) 
 mod tests {
     use super::*;
 
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     /// XOR of a full tree's leaves: `delta`, except under `emp`, where the
     /// leaf level (present for any depth ≥ 2) masks the low bit.

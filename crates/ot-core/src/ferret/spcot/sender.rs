@@ -1,7 +1,9 @@
 use blake3::{Hash, hash};
 use cfg_if::cfg_if;
 use itybity::FromBitIterator;
-use rand::{Rng, RngExt, SeedableRng};
+use rand::Rng;
+#[cfg(not(feature = "emp"))]
+use rand::RngExt;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 
@@ -104,7 +106,7 @@ impl SPCOTSender {
                 #[cfg(feature = "emp")]
                 {
                     let mut seed = [0u8; 16];
-                    rand::RngCore::fill_bytes(rng, &mut seed);
+                    rand::Rng::fill_bytes(rng, &mut seed);
                     seed
                 }
                 #[cfg(not(feature = "emp"))]

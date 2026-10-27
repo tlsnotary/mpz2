@@ -10,7 +10,7 @@
 #![cfg(feature = "emp")]
 
 use mpz_core::{lpn::LpnEncoder, prg::Prg, Block};
-use rand_core::{RngCore, SeedableRng};
+use rand_core::{Rng, SeedableRng};
 use sha2::{Digest, Sha256};
 
 const GOLDEN: &str = include_str!("data/lpn_golden.txt");
