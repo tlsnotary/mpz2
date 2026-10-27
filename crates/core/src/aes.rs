@@ -5,10 +5,8 @@ use cipher::{BlockCipherEncrypt, KeyInit};
 use hybrid_array::{Array, typenum::consts::U16};
 use once_cell::sync::Lazy;
 
-/// A fixed AES key (arbitrarily chosen).
-pub const FIXED_KEY: [u8; 16] = [
-    69, 42, 69, 42, 69, 42, 69, 42, 69, 42, 69, 42, 69, 42, 69, 42,
-];
+/// A fixed AES key (all-zero, matching emp-tool's `CCRH` default).
+pub const FIXED_KEY: [u8; 16] = [0; 16];
 
 /// Fixed-key AES cipher
 pub static FIXED_KEY_AES: Lazy<FixedKeyAes> = Lazy::new(|| FixedKeyAes {
