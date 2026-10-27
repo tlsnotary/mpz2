@@ -57,8 +57,8 @@ impl AdaptiveBarrier {
 
         match recv.await {
             Ok(result) => result,
-            // The only case where this can happen is if the leader drops the result,
-            // in which case we can just proceed.
+            // The only case where this can happen is if the leader drops the
+            // result, in which case we can just proceed.
             Err(_) => BarrierResult::Waiter,
         }
     }
