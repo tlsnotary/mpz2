@@ -129,7 +129,8 @@ where
         #[cfg(feature = "emp")]
         self.emp.begin_round(&mut self.keys);
 
-        // If available COTs are insufficient, we bootstrap from the inner COT instance.
+        // If available COTs are insufficient, we bootstrap from the inner COT
+        // instance.
         if self.wants_bootstrap() {
             let missing = self.config.bootstrap_cost() - self.keys.len();
             let RCOTSenderOutput { keys, .. } = self

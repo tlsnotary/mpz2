@@ -42,7 +42,11 @@ pub struct RecordedSender {
     pub cot_seed: Block,
     /// Seed for the Ferret sender.
     pub sender_seed: Block,
-    /// Correlations actually produced (OT_COUNT rounded up to whole iterations).
+    /// Correlations actually produced (OT_COUNT rounded up to whole
+    /// iterations).
+    // Only the native bench entry points read this; the browser harness reuses
+    // the body without reporting throughput.
+    #[allow(dead_code)]
     pub actual_count: usize,
 }
 
@@ -56,7 +60,11 @@ pub struct RecordedSenderMt {
     pub cot_seed: Block,
     /// Seed for the Ferret sender.
     pub sender_seed: Block,
-    /// Correlations actually produced (OT_COUNT rounded up to whole iterations).
+    /// Correlations actually produced (OT_COUNT rounded up to whole
+    /// iterations).
+    // Only the native bench entry points read this; the browser harness reuses
+    // the body without reporting throughput.
+    #[allow(dead_code)]
     pub actual_count: usize,
 }
 

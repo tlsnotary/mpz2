@@ -1,7 +1,7 @@
 //! A seeded RCOT mirroring emp-ot's seeded-bootstrap hook.
 //!
-//! emp-ot's `SeededFerret` (see emp-ot `tools/dump_ferret_golden.cpp`) fills the
-//! base COTs from a public seed:
+//! emp-ot's `SeededFerret` (see emp-ot `tools/dump_ferret_golden.cpp`) fills
+//! the base COTs from a public seed:
 //!
 //! * `key_i`   = block `i` of `Prg(seed)`, with bit 0 cleared,
 //! * `choice_i` = bit `i` of `Prg(seed ^ 1)` (LSB-first), and

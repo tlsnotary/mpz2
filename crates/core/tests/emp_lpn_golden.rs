@@ -9,7 +9,7 @@
 //! match.
 #![cfg(feature = "emp")]
 
-use mpz_core::{lpn::LpnEncoder, prg::Prg, Block};
+use mpz_core::{Block, lpn::LpnEncoder, prg::Prg};
 use rand_core::{Rng, SeedableRng};
 use sha2::{Digest, Sha256};
 
@@ -28,14 +28,14 @@ fn line(name: &str) -> &'static str {
 
 fn hex(name: &str) -> Vec<u8> {
     let s = line(name);
-    assert!(s.len() % 2 == 0, "odd hex length for `{name}`");
+    assert!(s.len().is_multiple_of(2), "odd hex length for `{name}`");
     (0..s.len() / 2)
         .map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).unwrap())
         .collect()
 }
 
 fn blocks(bytes: &[u8]) -> Vec<[u8; 16]> {
-    bytes.chunks_exact(16).map(|c| c.try_into().unwrap()).collect()
+    bytes.as_chunks::<16>().0.to_vec()
 }
 
 #[test]

@@ -111,7 +111,9 @@ impl<const D: usize> LpnEncoder<D> {
             let row0 = 4 * c;
             for (i, col) in group
                 .as_flattened()
-                .chunks_exact(D)
+                .as_chunks::<D>()
+                .0
+                .iter()
                 .enumerate()
                 .take(y.len() - row0)
             {
@@ -150,7 +152,9 @@ impl<const D: usize> LpnEncoder<D> {
             let row0 = 4 * c;
             for (i, col) in group
                 .as_flattened()
-                .chunks_exact(D)
+                .as_chunks::<D>()
+                .0
+                .iter()
                 .enumerate()
                 .take(y.len() - row0)
             {
@@ -317,8 +321,9 @@ mod tests {
 
                 let mut idx = [[0u32; 4]; D];
                 for (d, block) in idx.iter_mut().enumerate() {
-                    // Shares the batched path's index source (see `index_block`),
-                    // so the cross-check stays valid under `emp`.
+                    // Shares the batched path's index source (see
+                    // `index_block`), so the cross-check
+                    // stays valid under `emp`.
                     *block = super::index_block::<D>(pos, d as u64);
                 }
                 let blocks: &mut [[u8; 16]] = zerocopy::transmute_mut!(idx.as_mut_slice());

@@ -25,18 +25,20 @@ fn line(name: &str) -> &'static str {
 
 fn hex(name: &str) -> Vec<u8> {
     let s = line(name);
-    assert!(s.len() % 2 == 0, "odd hex length for `{name}`");
+    assert!(s.len().is_multiple_of(2), "odd hex length for `{name}`");
     (0..s.len() / 2)
         .map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).unwrap())
         .collect()
 }
 
 fn block(name: &str) -> [u8; 16] {
-    hex(name).try_into().unwrap_or_else(|_| panic!("`{name}` is not 16 bytes"))
+    hex(name)
+        .try_into()
+        .unwrap_or_else(|_| panic!("`{name}` is not 16 bytes"))
 }
 
 fn blocks(name: &str) -> Vec<[u8; 16]> {
-    hex(name).chunks_exact(16).map(|c| c.try_into().unwrap()).collect()
+    hex(name).as_chunks::<16>().0.to_vec()
 }
 
 #[test]
@@ -60,7 +62,10 @@ fn emp_cggm_golden() {
     let mut leaves = vec![[0u8; 16]; n];
     let mut sums = vec![[0u8; 16]; depth];
     cggm::expand(delta, seed, &mut leaves, &mut sums);
-    assert_eq!(leaves, want_sender, "cGGM sender leaves diverge from emp-ot");
+    assert_eq!(
+        leaves, want_sender,
+        "cGGM sender leaves diverge from emp-ot"
+    );
     assert_eq!(sums, want_k0, "cGGM sender K0 diverges from emp-ot");
 
     // Receiver: reconstruct from the off-path corrections.

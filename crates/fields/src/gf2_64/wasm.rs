@@ -24,7 +24,7 @@ pub(super) fn mul(a: u64, b: u64) -> u64 {
 /// simultaneously — no multiplies at all.
 #[inline]
 pub(super) fn square(a: u64) -> u64 {
-    let v = bit_spread_v128(u64x2(a as u32 as u64, (a >> 32) as u64));
+    let v = bit_spread_v128(u64x2(a as u32 as u64, a >> 32));
     let lo = u64x2_extract_lane::<0>(v);
     let hi = u64x2_extract_lane::<1>(v);
     reduce64(lo, hi)

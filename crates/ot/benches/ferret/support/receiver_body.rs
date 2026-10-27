@@ -40,7 +40,11 @@ pub struct RecordedReceiver {
     pub cot_recv_seed: u64,
     /// Seed for the Ferret receiver.
     pub receiver_seed: Block,
-    /// Correlations actually produced (OT_COUNT rounded up to whole iterations).
+    /// Correlations actually produced (OT_COUNT rounded up to whole
+    /// iterations).
+    // Only the native bench entry points read this; the browser harness reuses
+    // the body without reporting throughput.
+    #[allow(dead_code)]
     pub actual_count: usize,
 }
 
@@ -52,7 +56,11 @@ pub struct RecordedReceiverMt {
     pub cot_recv_seed: u64,
     /// Seed for the Ferret receiver.
     pub receiver_seed: Block,
-    /// Correlations actually produced (OT_COUNT rounded up to whole iterations).
+    /// Correlations actually produced (OT_COUNT rounded up to whole
+    /// iterations).
+    // Only the native bench entry points read this; the browser harness reuses
+    // the body without reporting throughput.
+    #[allow(dead_code)]
     pub actual_count: usize,
 }
 

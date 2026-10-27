@@ -32,7 +32,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         // Throughput = output correlations produced per second.
         group.throughput(Throughput::Elements(n as u64));
 
-        // Label by the secret size (16 * k bytes), which determines cache residency.
+        // Label by the secret size (16 * k bytes), which determines cache
+        // residency.
         let secret_kib = k as usize * 16 / 1024;
         group.bench_function(format!("secret={secret_kib}KiB/n={n}"), |bench| {
             bench.iter(|| {

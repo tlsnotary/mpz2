@@ -23,7 +23,7 @@ fn golden_line(name: &str) -> &'static str {
 /// Decodes a hex field of the golden fixture.
 fn golden_hex(name: &str) -> Vec<u8> {
     let s = golden_line(name);
-    assert!(s.len() % 2 == 0, "odd hex length for `{name}`");
+    assert!(s.len().is_multiple_of(2), "odd hex length for `{name}`");
     (0..s.len() / 2)
         .map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).unwrap())
         .collect()
@@ -67,7 +67,7 @@ fn test_emp_wire_shapes() {
 
     let tree_depth = (TEST_PARAMS.n / TEST_PARAMS.t).ilog2() as usize;
     // emp's sender→receiver stream: one `tree_depth`-block `c` per tree.
-    assert_eq!(send.len(), TEST_PARAMS.t as usize * tree_depth * 16);
+    assert_eq!(send.len(), TEST_PARAMS.t * tree_depth * 16);
     // emp sends nothing on the extend from the receiver.
     assert_eq!(recv_ext.len(), 0);
 }
@@ -129,7 +129,7 @@ fn test_emp_round_c() {
 
     // Whole round: emp's trace is its b11 round's 1170 tree-sends
     // (t trees), = t * tree_depth * 16 bytes.
-    assert_eq!(wire.len(), params.t as usize * tree_depth * 16);
+    assert_eq!(wire.len(), params.t * tree_depth * 16);
     use sha2::Digest;
     let got = sha2::Sha256::digest(&wire);
     assert_eq!(

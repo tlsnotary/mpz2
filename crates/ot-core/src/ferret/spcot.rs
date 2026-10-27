@@ -199,7 +199,10 @@ mod tests {
             fold_chis(seed, &values, &picks),
             (expected_fold, expected_picked)
         );
-        assert_eq!(fold_chis(seed, &[], &[]), (Gf2_128::zero(), Gf2_128::zero()));
+        assert_eq!(
+            fold_chis(seed, &[], &[]),
+            (Gf2_128::zero(), Gf2_128::zero())
+        );
     }
 
     fn execute<R: Rng>(
