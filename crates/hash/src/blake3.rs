@@ -87,10 +87,12 @@ impl ChainingValue {
         let state = vm.alloc()?;
 
         match visibility {
-            // When keyed hash mode is used, chaining value is initialised with a private key.
+            // When keyed hash mode is used, chaining value is initialised with
+            // a private key.
             Visibility::Private => vm.mark_private(state)?,
-            // When normal hash mode is used, chaining value is initialised with the public IV.
-            // We need to use this mode as ZK circuit's DSL (e.g. Noir) only support this now.
+            // When normal hash mode is used, chaining value is initialised with
+            // the public IV. We need to use this mode as ZK circuit's DSL (e.g.
+            // Noir) only support this now.
             Visibility::Public => vm.mark_public(state)?,
         };
 
@@ -174,8 +176,8 @@ impl Chunk {
         Ok(Self {
             blocks: Vec::new(),
             chaining_value,
-            // The same state can be used with every block, except for the last block,
-            // where its length can be smaller than BLOCK_LEN.
+            // The same state can be used with every block, except for the last
+            // block, where its length can be smaller than BLOCK_LEN.
             state: State::new(vm, counter, blake3::BLOCK_LEN as u32)?,
             flags,
             counter,
