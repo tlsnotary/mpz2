@@ -39,7 +39,8 @@ pub struct VerifierBench {
     svole_choices: Vec<bool>,
     svole_ev: Vec<mpz_core::Block>,
     adjustments: Vec<Vec<bool>>,
-    // Prover-side inputs, used only by `check_setup` to run the untimed execute.
+    // Prover-side inputs, used only by `check_setup` to run the untimed
+    // execute.
     input_macs: Vec<Mac>,
     gate_macs: Vec<Mac>,
     gate_masks: Vec<bool>,
