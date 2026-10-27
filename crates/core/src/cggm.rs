@@ -17,8 +17,6 @@
 //! i.e. an index encodes its path with the level-1 bit in the least
 //! significant position.
 
-use crate::aes::FIXED_KEY_AES;
-
 /// A zero node.
 const ZERO: [u8; 16] = [0; 16];
 
@@ -26,6 +24,22 @@ const ZERO: [u8; 16] = [0; 16];
 #[inline(always)]
 fn xor(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
     (u128::from_ne_bytes(a) ^ u128::from_ne_bytes(b)).to_ne_bytes()
+}
+
+/// Mask applied to the final level's leaves.
+///
+/// emp-ot clears the low bit of every leaf (`kClearLeafLSB`); the `emp` feature
+/// matches that, while the default build keeps the raw leaf, i.e. an identity
+/// mask.
+#[cfg(feature = "emp")]
+const LEAF_LSB_MASK: u8 = 0xFE;
+#[cfg(not(feature = "emp"))]
+const LEAF_LSB_MASK: u8 = 0xFF;
+
+/// Applies [`LEAF_LSB_MASK`] to a final-level leaf.
+#[inline(always)]
+fn mask_leaf_lsb(block: &mut [u8; 16]) {
+    block[0] &= LEAF_LSB_MASK;
 }
 
 /// Number of nodes hashed per batch in [`expand_level`]. Large enough to
@@ -38,7 +52,9 @@ const BATCH: usize = 64;
 /// `nodes[..n]` holds the parents. Writes the left children to `nodes[..n]`
 /// and the right children to `nodes[n..2n]`, returning the XOR sum of the
 /// children on one side, selected by `right`.
-fn expand_level(nodes: &mut [[u8; 16]], n: usize, right: bool) -> [u8; 16] {
+///
+/// `leaf` marks the final level, where the children are leaves.
+fn expand_level(nodes: &mut [[u8; 16]], n: usize, right: bool, leaf: bool) -> [u8; 16] {
     let (left, rest) = nodes.split_at_mut(n);
     let right_half = &mut rest[..n];
 
@@ -48,11 +64,15 @@ fn expand_level(nodes: &mut [[u8; 16]], n: usize, right: bool) -> [u8; 16] {
     let mut h = [ZERO; BATCH];
     for (left, right_half) in left.chunks_mut(BATCH).zip(right_half.chunks_mut(BATCH)) {
         let h = &mut h[..left.len()];
-        FIXED_KEY_AES.ccr_blocks_to(left, h);
+        crate::aes::FIXED_KEY_AES.ccr_blocks_to(left, h);
 
         for ((l, r), h) in left.iter_mut().zip(right_half.iter_mut()).zip(&*h) {
             *r = xor(*l, *h);
             *l = *h;
+            if leaf {
+                mask_leaf_lsb(l);
+                mask_leaf_lsb(r);
+            }
             sum = xor(sum, if right { *r } else { *l });
         }
     }
@@ -88,7 +108,7 @@ pub fn expand(delta: [u8; 16], seed: [u8; 16], leaves: &mut [[u8; 16]], sums: &m
 
     for i in 2..=depth {
         let n = 1 << (i - 1);
-        sums[i - 1] = expand_level(&mut leaves[..2 * n], n, false);
+        sums[i - 1] = expand_level(&mut leaves[..2 * n], n, false, i == depth);
     }
 }
 
@@ -130,7 +150,7 @@ pub fn expand_punctured(idx: usize, sums: &[[u8; 16]], leaves: &mut [[u8; 16]]) 
         let b = (idx >> (i - 1)) & 1;
 
         // Expand the entire level, summing the nodes on the off-path side.
-        let sum = expand_level(&mut leaves[..2 * half], half, b == 0);
+        let sum = expand_level(&mut leaves[..2 * half], half, b == 0, i == depth);
 
         // The on-path parent is zero, so both of its children hold the junk
         // value H(0): the left child at `pos` and the right child at
@@ -139,7 +159,11 @@ pub fn expand_punctured(idx: usize, sums: &[[u8; 16]], leaves: &mut [[u8; 16]]) 
         let junk = leaves[pos];
         leaves[pos] = ZERO;
         leaves[pos + half] = ZERO;
-        leaves[pos + (b ^ 1) * half] = xor(xor(sum, junk), sums[i - 1]);
+        let mut sibling = xor(xor(sum, junk), sums[i - 1]);
+        if i == depth {
+            mask_leaf_lsb(&mut sibling);
+        }
+        leaves[pos + (b ^ 1) * half] = sibling;
 
         pos += b * half;
     }
@@ -150,6 +174,24 @@ mod tests {
     use super::*;
 
     use rand::{Rng, SeedableRng, rngs::StdRng};
+
+    /// XOR of a full tree's leaves: `delta`, except under `emp`, where the
+    /// leaf level (present for any depth ≥ 2) masks the low bit.
+    fn leaf_total(depth: usize, delta: [u8; 16]) -> [u8; 16] {
+        cfg_select! {
+            feature = "emp" => {
+                let mut total = delta;
+                if depth >= 2 {
+                    total[0] &= 0xFE;
+                }
+                total
+            }
+            _ => {
+                let _ = depth;
+                delta
+            }
+        }
+    }
 
     #[test]
     fn test_cggm_level_correlation() {
@@ -163,9 +205,10 @@ mod tests {
 
         expand(delta, seed, &mut leaves, &mut sums);
 
-        // The nodes of every level XOR to delta, in particular the leaves.
+        // The nodes of every level XOR to delta, in particular the leaves
+        // (modulo the `emp` leaf-LSB clearing).
         let sum = leaves.iter().fold(ZERO, |acc, leaf| xor(acc, *leaf));
-        assert_eq!(sum, delta);
+        assert_eq!(sum, leaf_total(depth, delta));
     }
 
     #[test]
@@ -206,7 +249,7 @@ mod tests {
 
                 // The punctured leaf is recovered offset by delta.
                 let fold = punctured.iter().fold(ZERO, |acc, w| xor(acc, *w));
-                assert_eq!(fold, xor(leaves[idx], delta));
+                assert_eq!(fold, xor(leaves[idx], leaf_total(depth, delta)));
             }
         }
     }

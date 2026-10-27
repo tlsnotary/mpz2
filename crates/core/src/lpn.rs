@@ -35,6 +35,35 @@ pub struct LpnEncoder<const D: usize> {
 /// (e.g. on WASM, which has no AES instructions) saturated. Tuning knob.
 const GROUPS: usize = 4;
 
+/// Builds the AES plaintext block that selects the `D` column indices for the
+/// 4-row group starting at row `pos`, lane `d`.
+///
+/// By default the two 64-bit halves are filled independently — low half `pos`,
+/// high half `d` — so each 4-row group derives its indices from its own
+/// position alone (trivially parallel, no shared stream state). The halves are
+/// transmuted in native order, so the PRP input is little-endian only.
+///
+/// With the `emp` feature the fields are collapsed into the single
+/// monotone counter `(pos / 4) * D + d` (high half zero) that emp-ot's `PRG`
+/// consumes, turning this PRP into emp-ot's PRG stream so a test can reproduce
+/// its matrix `A` byte-for-byte. Exact equivalence also requires the output
+/// length to be a multiple of 4: emp-ot's sub-4 tail consumes its blocks in a
+/// different quantization (it pads each single-row batch to a block and the
+/// two padding words are discarded).
+#[inline(always)]
+fn index_block<const D: usize>(pos: u64, d: u64) -> [u32; 4] {
+    #[cfg(feature = "emp")]
+    {
+        let counter = (pos / 4) * D as u64 + d;
+        // Low half = counter, high half = 0, matching emp-tool's
+        // `makeBlock(0, counter)` and this crate's own `Prg` stream.
+        zerocopy::transmute!([counter, 0u64])
+    }
+    #[cfg(not(feature = "emp"))]
+    {
+        zerocopy::transmute!([pos, d])
+    }
+}
 impl<const D: usize> LpnEncoder<D> {
     /// Create a new LPN instance.
     ///
@@ -56,12 +85,12 @@ impl<const D: usize> LpnEncoder<D> {
     /// of `D` indices of the flattened group.
     #[inline]
     fn compute_indices(&self, base: usize, n_groups: usize, prp: &Prp) -> [[[u32; 4]; D]; GROUPS] {
-        // Counter blocks: group `c` uses blocks `(base + 4c, 0..D)`.
+        // Counter blocks: group `c` uses `index_block::<D>(base + 4c, d)`.
         let mut idx = [[[0u32; 4]; D]; GROUPS];
         for (c, group) in idx[..n_groups].iter_mut().enumerate() {
             let pos = (base + 4 * c) as u64;
             for (d, block) in group.iter_mut().enumerate() {
-                *block = zerocopy::transmute!([pos, d as u64]);
+                *block = index_block::<D>(pos, d as u64);
             }
         }
 
@@ -288,7 +317,9 @@ mod tests {
 
                 let mut idx = [[0u32; 4]; D];
                 for (d, block) in idx.iter_mut().enumerate() {
-                    *block = zerocopy::transmute!([pos, d as u64]);
+                    // Shares the batched path's index source (see `index_block`),
+                    // so the cross-check stays valid under `emp`.
+                    *block = super::index_block::<D>(pos, d as u64);
                 }
                 let blocks: &mut [[u8; 16]] = zerocopy::transmute_mut!(idx.as_mut_slice());
                 prp.permute_block_inplace(blocks);

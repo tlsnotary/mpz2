@@ -12,6 +12,9 @@ workspace = true
 [features]
 default = []
 rayon = ["dep:rayon"]
+# Match emp-ot's LPN indices and cGGM AES key, for the byte-for-byte
+# golden comparisons. Off by default.
+emp = []
 
 [dependencies]
 aes = { workspace = true, features = [] }
@@ -36,6 +39,7 @@ bitvec = { workspace = true, features = ["serde"] }
 rstest.workspace = true
 criterion.workspace = true
 rand_chacha.workspace = true
+sha2.workspace = true
 
 [[bench]]
 name = "aes"

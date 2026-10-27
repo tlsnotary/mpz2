@@ -12,6 +12,8 @@ name = "mpz_ot_core"
 [features]
 default = []
 rayon = ["dep:rayon", "mpz-core/rayon", "mpz-fields/rayon", "itybity/rayon", "blake3/rayon"]
+# Byte-for-byte compatibility with emp-ot (see `mpz-core/emp`).
+emp = ["mpz-core/emp"]
 test-utils = []
 
 [dependencies]
