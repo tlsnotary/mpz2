@@ -28,11 +28,11 @@ pub struct FerretConfig {
 /// The hold/pass sizing of one round of extension, see
 /// [`FerretConfig::round_plan`].
 pub(crate) struct RoundPlan {
-    /// Base correlations consumed per round.
+    /// Base correlations consumed per round (`M`).
     pub cost: usize,
     /// Correlations handed to the user this round.
     pub user_len: usize,
-    /// Trees whose output seeds the next round.
+    /// Trees whose output seeds the next round (`refill_trees`).
     pub refill_trees: usize,
     /// Size of the consistency-check group.
     csp: usize,
@@ -43,11 +43,19 @@ pub(crate) struct RoundPlan {
 impl RoundPlan {
     /// Where this round's base-correlation groups sit in the tail.
     pub(crate) fn tail(&self, spcot_count: usize) -> TailLayout {
-        TailLayout {
+        #[cfg(feature = "emp")]
+        let tail = TailLayout {
+            spcot: spcot_count,
+            check: (self.k + self.csp, self.k),
+            lpn: (self.k, 0),
+        };
+        #[cfg(not(feature = "emp"))]
+        let tail = TailLayout {
             spcot: spcot_count,
             check: (self.csp, 0),
             lpn: (self.k + self.csp, self.csp),
-        }
+        };
+        tail
     }
 }
 
@@ -142,7 +150,15 @@ impl FerretConfig {
 
     /// Returns the cost of a bootstrap iteration.
     pub(crate) fn bootstrap_cost(&self) -> usize {
-        iteration_cost(REGULAR_PARAMS[0])
+        #[cfg(feature = "emp")]
+        {
+            // One round's worth.
+            iteration_cost(self.select_params(0, 0))
+        }
+        #[cfg(not(feature = "emp"))]
+        {
+            iteration_cost(REGULAR_PARAMS[0])
+        }
     }
 
     /// Correlations held back as a reserve (never handed to the user).
@@ -155,13 +171,20 @@ impl FerretConfig {
     }
 
     /// Sizes one round of extension for `params`.
-    ///
-    /// The single place the round's hold/pass sizing is decided.
     pub(crate) fn round_plan(&self, params: LpnParameters) -> RoundPlan {
+        let cost = iteration_cost(params);
+        let chunk = params.n / params.t;
+
+        // Trees held back to seed the next round.
+        #[cfg(feature = "emp")]
+        let refill_trees = cost.div_ceil(chunk);
+        #[cfg(not(feature = "emp"))]
+        let refill_trees = 0;
+
         RoundPlan {
-            cost: iteration_cost(params),
-            user_len: params.n,
-            refill_trees: 0,
+            cost,
+            user_len: params.n - refill_trees * chunk,
+            refill_trees,
             csp: CSP,
             k: params.k,
         }

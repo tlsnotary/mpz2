@@ -13,7 +13,7 @@ name = "mpz_ot_core"
 default = []
 rayon = ["dep:rayon", "mpz-core/rayon", "mpz-fields/rayon", "itybity/rayon", "blake3/rayon"]
 # Byte-for-byte compatibility with emp-ot (see `mpz-core/emp`).
-emp = ["mpz-core/emp"]
+emp = ["mpz-core/emp", "dep:sha2"]
 test-utils = []
 
 [dependencies]
@@ -31,6 +31,7 @@ rand.workspace = true
 rand_core.workspace = true
 rand_chacha.workspace = true
 rayon = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
 curve25519-dalek = { workspace = true, features = ["serde", "rand_core"] }
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true

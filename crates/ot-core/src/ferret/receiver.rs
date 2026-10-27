@@ -7,11 +7,14 @@ use mpz_cointoss_core::{CointossError, Sender as CointossSender, sender_state as
 use mpz_common::future::{MaybeDone, Sender as OutputSender, new_output};
 use mpz_core::{
     Block,
-    lpn::{LpnEncoder, LpnParameters, sample_error_indices},
+    lpn::{LpnEncoder, LpnParameters},
     prg::Prg,
 };
 
 use mpz_fields::gf2_128::Gf2_128;
+
+#[cfg(not(feature = "emp"))]
+use mpz_core::lpn::sample_error_indices;
 
 use crate::{
     TransferId,
@@ -52,6 +55,14 @@ pub struct Receiver<COT> {
     choices: Vec<bool>,
     state: State,
     spcot: SPCOTReceiver,
+    /// Session id for the compat derivations.
+    #[cfg(feature = "emp")]
+    sid: Block,
+    /// Next round's bases (this round's refill trees).
+    #[cfg(feature = "emp")]
+    next_macs: Vec<Gf2_128>,
+    #[cfg(feature = "emp")]
+    next_choices: Vec<bool>,
 }
 
 impl<COT> Receiver<COT>
@@ -72,7 +83,19 @@ where
             pending: 0,
             state: State::Extend,
             spcot: SPCOTReceiver::new(),
+            #[cfg(feature = "emp")]
+            sid: Block::ZERO,
+            #[cfg(feature = "emp")]
+            next_macs: Vec::new(),
+            #[cfg(feature = "emp")]
+            next_choices: Vec::new(),
         }
+    }
+
+    /// Sets the session id for the compat derivations.
+    #[cfg(feature = "emp")]
+    pub fn set_sid(&mut self, sid: Block) {
+        self.sid = sid;
     }
 
     /// Returns a lock on the inner COT sender.
@@ -108,8 +131,14 @@ where
             return Err(ErrorRepr::State("not in extend state".to_string()).into());
         };
 
-        // If available COTs are insufficient, we bootstrap from the inner COT
-        // instance.
+        // The previous round's refill trees are this round's bases.
+        #[cfg(feature = "emp")]
+        {
+            self.macs.append(&mut self.next_macs);
+            self.choices.append(&mut self.next_choices);
+        }
+
+        // If available COTs are insufficient, we bootstrap from the inner COT instance.
         if self.wants_bootstrap() {
             let missing = self.config.bootstrap_cost() - self.macs.len();
             let RCOTReceiverOutput {
@@ -130,12 +159,18 @@ where
         let missing = self.alloc.saturating_sub(self.available());
         let params = self.config.select_params(self.macs.len(), missing);
 
-        let err = sample_error_indices(&mut self.prg, params.n, params.t);
-
-        let (spcot_lengths, spcot_idxs) = mpcot::spcot_queries(&err, params.n)?;
-
+        let spcot_lengths = mpcot::spcot_lengths(params.t, params.n)?;
         let spcot_count: usize = spcot_lengths.iter().sum();
         let masks = &self.choices[self.choices.len() - spcot_count..];
+
+        // From the cGGM-correction choices, so the sender's derandomization
+        // is the identity.
+        #[cfg(feature = "emp")]
+        let err = mpcot::spcot_queries_from_choices(masks, &spcot_lengths, params.n);
+        #[cfg(not(feature = "emp"))]
+        let err = sample_error_indices(&mut self.prg, params.n, params.t);
+
+        let (_, spcot_idxs) = mpcot::spcot_queries(&err, params.n)?;
         let derandomize = self.spcot.derandomize(&spcot_lengths, &spcot_idxs, masks)?;
 
         // Drop used COT choices.
@@ -180,7 +215,14 @@ where
         };
 
         let (lpn_seeds, cointoss) = cointoss.receive(lpn_seed_share)?;
+        #[cfg(not(feature = "emp"))]
         let lpn_seed = lpn_seeds[0];
+        #[cfg(feature = "emp")]
+        let lpn_seed = {
+            let _ = lpn_seeds;
+            // From the session id.
+            crate::ferret::emp_compat::lpn_seed(self.sid)
+        };
         let lpn_seed_decommitment = cointoss.finalize();
 
         let spcot_count: usize = spcot_lengths.iter().sum();
@@ -198,10 +240,10 @@ where
             .into());
         }
 
-        // Pop the COT MACs consumed by this extension off the tail: the
-        // SPCOT MACs, the consistency check MACs and choices, and the LPN
-        // input. This frees the tail of the MACs buffer so the SPCOT vectors
-        // can be expanded directly into their final place.
+        // Pop the COT MACs consumed by this extension off the tail: the SPCOT
+        // MACs, the consistency check MACs, and the LPN input. This frees the
+        // tail of the MACs buffer so the SPCOT vectors can be expanded
+        // directly into their final place.
         let tail = plan.tail(spcot_count);
         let (spcot_macs, check_macs, lpn_macs) = tail.split(&mut self.macs);
         let check_masks = tail.take_check_masks(&mut self.choices);
@@ -305,6 +347,21 @@ where
                 self.choices.push((byte >> i) & 1 == 1);
             }
             remaining -= remaining.min(8);
+        }
+
+        // The last `refill_trees` trees seed the next round: move their MACs
+        // and choices out of the output buffers.
+        #[cfg(feature = "emp")]
+        {
+            let plan = self.config.round_plan(params);
+            let refill = plan.refill_trees * (params.n / params.t);
+            let at = self.macs.len() - refill;
+            self.next_macs = self.macs.split_off(at);
+            let at = self.choices.len() - refill;
+            self.next_choices = self.choices.split_off(at);
+            // Keep the first `M` of the refill output.
+            self.next_macs.truncate(plan.cost);
+            self.next_choices.truncate(plan.cost);
         }
 
         let missing = self.alloc.saturating_sub(self.available());

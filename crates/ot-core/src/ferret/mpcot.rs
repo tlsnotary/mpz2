@@ -81,6 +81,35 @@ pub(crate) fn spcot_queries(idxs: &[usize], len: usize) -> Result<(Vec<usize>, V
     Ok((lengths, idxs))
 }
 
+/// Queries derived from the cGGM-correction COT choices.
+///
+/// One `lengths[i]`-bit path per tree; the level-`j` bit is the complement of
+/// the choice bit, so the sender's derandomization is the identity.
+#[cfg(feature = "emp")]
+pub(crate) fn spcot_queries_from_choices(
+    choices: &[bool],
+    lengths: &[usize],
+    len: usize,
+) -> Vec<usize> {
+    let count = lengths.len();
+    let k = len / count;
+    let mut errs = Vec::with_capacity(count);
+    let mut offset = 0;
+    for (i, &log2_len) in lengths.iter().enumerate() {
+        let mut idx = 0usize;
+        for j in 0..log2_len {
+            // Path bit = complement of the choice bit, so the sender's
+            // derandomization (`!idx_bit ^ mask`) is identically zero.
+            if !choices[offset + j] {
+                idx |= 1 << j;
+            }
+        }
+        offset += log2_len;
+        errs.push(i * k + idx);
+    }
+    errs
+}
+
 /// MPCOT error.
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]

@@ -98,7 +98,21 @@ impl SPCOTSender {
             .collect();
 
         let spcot_lengths: Vec<_> = log2_lengths.iter().map(|length| 1 << length).collect();
-        let seeds: Vec<[u8; 16]> = (0..log2_lengths.len()).map(|_| rng.random()).collect();
+        let seeds: Vec<[u8; 16]> = (0..log2_lengths.len())
+            .map(|_| {
+                // Raw PRG bytes; `Rng::random` would reorder them.
+                #[cfg(feature = "emp")]
+                {
+                    let mut seed = [0u8; 16];
+                    rand::RngCore::fill_bytes(rng, &mut seed);
+                    seed
+                }
+                #[cfg(not(feature = "emp"))]
+                {
+                    rng.random()
+                }
+            })
+            .collect();
         let vs = slices_from_lengths_mut(vs, &spcot_lengths);
         let cs_trees = slices_from_lengths_mut(&mut cs, log2_lengths);
 

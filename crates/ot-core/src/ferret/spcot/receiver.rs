@@ -179,10 +179,8 @@ impl SPCOTReceiver {
                 .fold(0u128, |acc, x| acc ^ u128::from_ne_bytes(*x))
                 .to_ne_bytes();
 
-            // emp-ot clears the leaf LSB (see `mpz_core::cggm`), so the fold
-            // above recovers the punctured leaf with its choice signal bit
-            // cleared; restore it with the public `bit0_mask`. Only trees with
-            // a leaf level (depth ≥ 2) were cleared, so only they are filled.
+            // Undo the leaf-LSB mask; only trees with a leaf level were
+            // masked.
             #[cfg(feature = "emp")]
             if sums.len() >= 2 {
                 w[idx][0] ^= 1;
