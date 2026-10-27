@@ -1,7 +1,13 @@
 //! Implement the two-key PRG as G(k) = PRF_seed0(k)\xor k || PRF_seed1(k)\xor k
 //! Refer to (<https://www.usenix.org/system/files/conference/nsdi17/nsdi17-wang-frank.pdf>, Page 8)
 
-use crate::{Block, aes::AesEncryptor};
+use crate::aes::AesEncryptor;
+
+/// XOR of two 16-byte blocks.
+#[inline(always)]
+fn xor(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
+    (u128::from_ne_bytes(a) ^ u128::from_ne_bytes(b)).to_ne_bytes()
+}
 
 /// Struct of two-key prp.
 /// This implementation is adapted from EMP toolkit.
@@ -10,7 +16,7 @@ pub struct TwoKeyPrp([AesEncryptor; 2]);
 impl TwoKeyPrp {
     /// Creates a new instance of TwoKeyPrp.
     #[inline(always)]
-    pub fn new(seeds: [Block; 2]) -> Self {
+    pub fn new(seeds: [[u8; 16]; 2]) -> Self {
         Self([AesEncryptor::new(seeds[0]), AesEncryptor::new(seeds[1])])
     }
 
@@ -28,7 +34,7 @@ impl TwoKeyPrp {
     ///
     /// * `inputs` - The input blocks to expand with the two-key PRP.
     /// * `dest` - The destination slice to write the expanded blocks.
-    pub fn expand(&self, inputs: &[Block], dest: &mut [Block]) {
+    pub fn expand(&self, inputs: &[[u8; 16]], dest: &mut [[u8; 16]]) {
         assert_eq!(
             dest.len(),
             2 * inputs.len(),
@@ -39,15 +45,15 @@ impl TwoKeyPrp {
 
         for (in_chunk, out_chunk) in inputs.chunks(CHUNK).zip(dest.chunks_mut(2 * CHUNK)) {
             let m = in_chunk.len();
-            let mut s0 = [Block::ZERO; CHUNK];
-            let mut s1 = [Block::ZERO; CHUNK];
+            let mut s0 = [[0u8; 16]; CHUNK];
+            let mut s1 = [[0u8; 16]; CHUNK];
             s0[..m].copy_from_slice(in_chunk);
             s1[..m].copy_from_slice(in_chunk);
             self.0[0].encrypt_blocks(&mut s0[..m]);
             self.0[1].encrypt_blocks(&mut s1[..m]);
             for (i, &x) in in_chunk.iter().enumerate() {
-                out_chunk[2 * i] = s0[i] ^ x;
-                out_chunk[2 * i + 1] = s1[i] ^ x;
+                out_chunk[2 * i] = xor(s0[i], x);
+                out_chunk[2 * i + 1] = xor(s1[i], x);
             }
         }
     }

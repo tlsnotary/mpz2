@@ -2,7 +2,6 @@
 
 use clmul::Clmul;
 use core::ops::{BitAnd, BitAndAssign, BitXor, BitXorAssign};
-use hybrid_array::{Array, typenum::consts::U16};
 use itybity::{BitIterable, BitLength, FromBitIterator, GetBit, Lsb0, Msb0};
 use rand::{CryptoRng, Rng, RngExt, distr::StandardUniform, prelude::Distribution};
 use serde::{Deserialize, Serialize};
@@ -150,43 +149,6 @@ impl Block {
     pub fn lsb(&self) -> bool {
         (self.0[0] & 1) == 1
     }
-
-    /// Let `x0` and `x1` be the lower and higher halves of `x`, respectively.
-    /// This function compute ``sigma( x = x0 || x1 ) = x1 || (x0 xor x1)``.
-    #[inline(always)]
-    pub fn sigma(a: Self) -> Self {
-        let mut x: [u64; 2] = zerocopy::transmute!(a);
-        x[0] ^= x[1];
-        zerocopy::transmute!([x[1], x[0]])
-    }
-
-    /// Converts a block to a [`Array<u8,
-    /// U16>`] from the [`hybrid-array`](https://docs.rs/hybrid-array/latest/hybrid_array/) crate.
-    #[allow(dead_code)]
-    pub(crate) fn as_array(&self) -> &Array<u8, U16> {
-        (&self.0).into()
-    }
-
-    /// Converts a mutable block to a mutable [`Array<u8,
-    /// U16>`] from the [`hybrid-array`](https://docs.rs/hybrid-array/latest/hybrid_array/) crate.
-    pub(crate) fn as_array_mut(&mut self) -> &mut Array<u8, U16> {
-        (&mut self.0).into()
-    }
-
-    /// Converts a slice of blocks to a slice of [`Array<u8,
-    /// U16>`]from the [`hybrid-array`](https://docs.rs/hybrid-array/latest/hybrid_array/) crate.
-    #[allow(dead_code)]
-    pub(crate) fn as_array_slice(slice: &[Self]) -> &[Array<u8, U16>] {
-        let bytes: &[[u8; 16]] = zerocopy::transmute_ref!(slice);
-        Array::cast_slice_from_core(bytes)
-    }
-
-    /// Converts a mutable slice of blocks to a mutable slice of
-    ///  from the [`hybrid-array`](https://docs.rs/hybrid-array/latest/hybrid_array/) crate.
-    pub(crate) fn as_array_mut_slice(slice: &mut [Self]) -> &mut [Array<u8, U16>] {
-        let bytes: &mut [[u8; 16]] = zerocopy::transmute_mut!(slice);
-        Array::cast_slice_from_core_mut(bytes)
-    }
 }
 
 impl Display for Block {
@@ -265,35 +227,6 @@ impl<'a> TryFrom<&'a [u8]> for Block {
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         <[u8; 16]>::try_from(value).map(Self::from)
-    }
-}
-
-impl From<Block> for Array<u8, U16> {
-    #[inline]
-    fn from(b: Block) -> Self {
-        b.0.into()
-    }
-}
-
-impl<'a> From<&'a Block> for &'a Array<u8, U16> {
-    #[inline]
-    fn from(b: &'a Block) -> Self {
-        (&b.0).into()
-    }
-}
-
-impl From<Array<u8, U16>> for Block {
-    #[inline]
-    fn from(b: Array<u8, U16>) -> Self {
-        Block::new(b.into())
-    }
-}
-
-impl<'a> From<&'a Array<u8, U16>> for &'a Block {
-    #[inline]
-    fn from(b: &'a Array<u8, U16>) -> Self {
-        let b: &'a [u8; 16] = b.as_ref();
-        b.into()
     }
 }
 
@@ -522,23 +455,6 @@ mod tests {
 
         assert_eq!(c, Block::inn_prdt_no_red(&a, &b));
         assert_eq!(d, Block::inn_prdt_red(&a, &b));
-    }
-
-    #[test]
-    fn sigma_test() {
-        use rand::{RngExt, SeedableRng};
-        use rand_chacha::ChaCha12Rng;
-        let mut rng = ChaCha12Rng::from_seed([0; 32]);
-        let mut x: [u8; 16] = rng.random();
-        let bx = Block::sigma(Block::from(x));
-        let (xl, xr) = x.split_at_mut(8);
-
-        for (x, y) in xl.iter_mut().zip(xr.iter_mut()) {
-            *x ^= *y;
-            std::mem::swap(x, y);
-        }
-        let expected_sigma = Block::from(x);
-        assert_eq!(bx, expected_sigma);
     }
 
     #[test]

@@ -36,7 +36,7 @@ impl Generator for PrgCore {
                 block[..8].copy_from_slice(&counter.to_le_bytes());
                 block[8..].copy_from_slice(&self.stream_id.to_le_bytes());
 
-                Block::from(block)
+                block
             },
         );
         self.aes.encrypt_many_blocks(&mut states);
@@ -49,7 +49,7 @@ impl SeedableRng for PrgCore {
 
     #[inline(always)]
     fn from_seed(seed: Self::Seed) -> Self {
-        let aes = AesEncryptor::new(seed);
+        let aes = AesEncryptor::new(seed.into());
         Self {
             aes,
             state: Default::default(),

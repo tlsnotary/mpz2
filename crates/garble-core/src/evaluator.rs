@@ -33,13 +33,13 @@ pub(crate) fn and_gate(
     let s_a = x.lsb();
     let s_b = y.lsb();
 
-    let j = Block::new((gid as u128).to_be_bytes());
-    let k = Block::new(((gid + 1) as u128).to_be_bytes());
+    let j = (gid as u128).to_be_bytes();
+    let k = ((gid + 1) as u128).to_be_bytes();
 
-    let mut h = [*x, *y];
+    let mut h = [x.to_bytes(), y.to_bytes()];
     cipher.tccr_many(&[j, k], &mut h);
 
-    let [hx, hy] = h;
+    let [hx, hy] = h.map(Block::new);
 
     let w_g = hx ^ (encrypted_gate[0] & Block::SELECT_MASK[s_a as usize]);
     let w_e = hy ^ (Block::SELECT_MASK[s_b as usize] & (encrypted_gate[1] ^ x));

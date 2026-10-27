@@ -155,11 +155,13 @@ impl SPCOTReceiver {
             )
             .enumerate()
             .map(|(i, (([m0, m1], &t), b))| {
-                let tweak = Block::from((self.counter + i as u128).to_be_bytes());
+                let tweak = (self.counter + i as u128).to_be_bytes();
+                let mut h = t.to_bytes();
+                cipher.tccr(tweak, &mut h);
                 if !b {
-                    cipher.tccr(tweak, t) ^ m1
+                    Block::from(h) ^ m1
                 } else {
-                    cipher.tccr(tweak, t) ^ m0
+                    Block::from(h) ^ m0
                 }
             })
             .collect();

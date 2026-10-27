@@ -88,8 +88,8 @@ impl SPCOTSender {
                 } else {
                     [*key, key ^ self.delta]
                 };
-                let tweak = Block::from((self.counter + i as u128).to_be_bytes());
-                cipher.tccr_many(&[tweak, tweak], &mut m);
+                let tweak = (self.counter + i as u128).to_be_bytes();
+                cipher.tccr_many(&[tweak, tweak], zerocopy::transmute_mut!(&mut m));
                 m
             })
             .collect();

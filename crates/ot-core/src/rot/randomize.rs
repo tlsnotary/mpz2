@@ -88,12 +88,14 @@ fn randomize_sender(delta: Block, output: RCOTSenderOutput<Block>) -> ROTSenderO
         .map(|(i, key)| {
             // Transfer ID ensures a unique tweak for each ROT.
             let j = ((id.as_u64() as u128) << 64) + (i as u128);
-            let j = Block::new(j.to_be_bytes());
+            let j = j.to_be_bytes();
 
-            let k0 = cipher.tccr(j, key);
-            let k1 = cipher.tccr(j, key ^ delta);
+            let mut k0 = key.to_bytes();
+            cipher.tccr(j, &mut k0);
+            let mut k1 = (key ^ delta).to_bytes();
+            cipher.tccr(j, &mut k1);
 
-            [k0, k1]
+            [Block::from(k0), Block::from(k1)]
         })
         .collect();
 
@@ -185,9 +187,11 @@ fn randomize_receiver(output: RCOTReceiverOutput<bool, Block>) -> ROTReceiverOut
     iter.for_each(|(i, msg)| {
         // Transfer ID ensures a unique tweak for each ROT.
         let j = ((id.as_u64() as u128) << 64) + (i as u128);
-        let j = Block::new(j.to_be_bytes());
+        let j = j.to_be_bytes();
 
-        *msg = cipher.tccr(j, *msg);
+        let mut h = msg.to_bytes();
+        cipher.tccr(j, &mut h);
+        *msg = Block::from(h);
     });
 
     ROTReceiverOutput { id, choices, msgs }
