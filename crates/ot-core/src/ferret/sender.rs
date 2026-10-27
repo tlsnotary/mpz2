@@ -19,7 +19,6 @@ use crate::{
     TransferId,
     ferret::{
         FerretConfig, ReceiverCheck, ReceiverExtend, SenderCheck, SenderExtend,
-        config::CSP,
         mpcot::{self, MPCOTError},
         spcot::{SPCOTSender, SPCOTSenderError},
         split_off_blocks,
@@ -158,7 +157,12 @@ where
         };
 
         let spcot_count: usize = spcot_lengths.iter().sum();
-        let cost = spcot_count + CSP + params.k;
+        let plan = self.config.round_plan(params);
+        debug_assert_eq!(
+            plan.user_len + plan.refill_trees * (params.n / params.t),
+            params.n
+        );
+        let cost = plan.cost;
         if self.keys.len() < cost {
             return Err(ErrorRepr::InsufficientCOTs {
                 expected: cost,
@@ -171,9 +175,7 @@ where
         // SPCOT keys, the consistency check keys, and the LPN input. This
         // frees the tail of the keys buffer so the SPCOT vectors can be
         // expanded directly into their final place.
-        let spcot_keys = self.keys.split_off(self.keys.len() - spcot_count);
-        let check_keys = self.keys.split_off(self.keys.len() - CSP);
-        let lpn_keys = self.keys.split_off(self.keys.len() - params.k);
+        let (spcot_keys, check_keys, lpn_keys) = plan.tail(spcot_count).split(&mut self.keys);
 
         // For regular indices, the MPCOT output is the concatenation of the
         // SPCOT vectors (Step 5 in Figure 7), which the SPCOT writes
@@ -311,11 +313,7 @@ where
 
     fn available(&self) -> usize {
         let len = self.keys.len() - self.pending;
-        if self.config.reserve_bootstrap() {
-            len.saturating_sub(self.config.bootstrap_cost())
-        } else {
-            len
-        }
+        len.saturating_sub(self.config.reserve())
     }
 
     fn delta(&self) -> Block {

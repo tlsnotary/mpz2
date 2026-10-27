@@ -17,7 +17,6 @@ use crate::{
     TransferId,
     ferret::{
         FerretConfig, ReceiverCheck, ReceiverExtend, SenderCheck, SenderExtend,
-        config::CSP,
         mpcot::{self, MPCOTError},
         spcot::{CheckStart, SPCOTReceiver, SPCOTReceiverError},
         split_off_blocks,
@@ -185,7 +184,12 @@ where
         let lpn_seed_decommitment = cointoss.finalize();
 
         let spcot_count: usize = spcot_lengths.iter().sum();
-        let cost = spcot_count + CSP + params.k;
+        let plan = self.config.round_plan(params);
+        debug_assert_eq!(
+            plan.user_len + plan.refill_trees * (params.n / params.t),
+            params.n
+        );
+        let cost = plan.cost;
         if self.macs.len() < cost {
             return Err(ErrorRepr::InsufficientCOTs {
                 expected: cost,
@@ -198,10 +202,9 @@ where
         // SPCOT MACs, the consistency check MACs and choices, and the LPN
         // input. This frees the tail of the MACs buffer so the SPCOT vectors
         // can be expanded directly into their final place.
-        let spcot_macs = self.macs.split_off(self.macs.len() - spcot_count);
-        let check_macs = self.macs.split_off(self.macs.len() - CSP);
-        let check_masks = self.choices.split_off(self.choices.len() - CSP);
-        let lpn_macs = self.macs.split_off(self.macs.len() - params.k);
+        let tail = plan.tail(spcot_count);
+        let (spcot_macs, check_macs, lpn_macs) = tail.split(&mut self.macs);
+        let check_masks = tail.take_check_masks(&mut self.choices);
 
         // For regular indices, the MPCOT output is the concatenation of the
         // SPCOT vectors (Step 5 in Figure 7), which the SPCOT writes
@@ -350,11 +353,7 @@ where
 
     fn available(&self) -> usize {
         let len = self.macs.len() - self.pending;
-        if self.config.reserve_bootstrap() {
-            len.saturating_sub(self.config.bootstrap_cost())
-        } else {
-            len
-        }
+        len.saturating_sub(self.config.reserve())
     }
 
     fn try_recv_rcot(&mut self, count: usize) -> Result<RCOTReceiverOutput<bool, Block>> {
