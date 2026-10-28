@@ -72,7 +72,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         group_mt.finish();
     }
-    }
+}
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);

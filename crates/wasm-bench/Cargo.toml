@@ -53,6 +53,7 @@ aes-wasm = { workspace = true }
 aes = { workspace = true }
 
 [dev-dependencies]
+crossbeam-channel = "0.5"
 wasm-bindgen-test = { workspace = true }
 
 # Browser benches mirroring the native criterion crate layout. Each bench target

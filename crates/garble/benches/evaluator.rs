@@ -3,8 +3,9 @@
 //! The ST/MT protocol bodies live in `support/evaluator_body.rs`.
 //!
 //! Run with:
-//!   cargo bench -p mpz-garble --features mock --bench evaluator         (ST only)
-//!   cargo bench -p mpz-garble --features "mock rayon" --bench evaluator (MT only)
+//!   cargo bench -p mpz-garble --features mock --bench evaluator         (ST
+//! only)   cargo bench -p mpz-garble --features "mock rayon" --bench evaluator
+//! (MT only)
 
 use std::sync::Arc;
 
@@ -107,7 +108,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         group_mt.finish();
     }
-    }
+}
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);

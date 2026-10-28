@@ -18,6 +18,7 @@ use wasm_bindgen_test::{Criterion, Instant, wasm_bindgen_bench, wasm_bindgen_tes
 
 #[path = "../../../zk-core/benches/support/prover_body.rs"]
 mod body;
+#[cfg(feature = "rayon")]
 #[path = "../support/pools.rs"]
 mod pools;
 
@@ -56,6 +57,9 @@ async fn prover_check(_c: &mut Criterion) {
         .with_location(file!(), module_path!())
         .sample_size(10);
 
+    #[cfg(feature = "rayon")]
+    pools::init_rayon_worker().await;
+
     let and_count = AES128.and_count();
     for &(gate_count, name) in body::CHECK_THRESHOLDS {
         let circuit_count = (gate_count as usize).div_ceil(and_count);
@@ -66,24 +70,32 @@ async fn prover_check(_c: &mut Criterion) {
                 let bench = bench.clone();
                 async move {
                     // `check` is rayon-parallel and parks its caller, which is
-                    // illegal on the main thread, so run each sample's
-                    // iterations on a worker. Setup (execute) is untimed; only
-                    // `check_run` is measured. The vendored criterion has no
-                    // `iter_batched`, so we self-time.
-                    pools::run_in_rayon_worker(move || {
-                        let mut total = Duration::ZERO;
-                        for _ in 0..iters {
-                            let (mut prover, mut transcript) = bench.check_setup();
-                            let start = Instant::now();
-                            bench.check_run(&mut prover, &mut transcript);
-                            total += start.elapsed();
-                        }
-                        total
-                    })
-                    .await
+                    // illegal on the main thread, so run the sample on a
+                    // worker.
+                    #[cfg(feature = "rayon")]
+                    let total = pools::submit_rayon(move || run_check_iters(iters, &bench)).await;
+                    // Without rayon `check` is serial, safe on the main thread.
+                    #[cfg(not(feature = "rayon"))]
+                    let total = run_check_iters(iters, &bench);
+
+                    total
                 }
             }))
         })
         .await;
     }
+}
+
+/// Runs `iters` checks, timing only `check_run` (setup is untimed).
+fn run_check_iters(iters: u64, bench: &ProverBench) -> Duration {
+    let mut total = Duration::ZERO;
+    for _ in 0..iters {
+        #[cfg(feature = "rayon")]
+        pools::tick();
+        let (mut prover, mut transcript) = bench.check_setup();
+        let start = Instant::now();
+        bench.check_run(&mut prover, &mut transcript);
+        total += start.elapsed();
+    }
+    total
 }

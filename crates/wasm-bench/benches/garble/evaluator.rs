@@ -91,6 +91,7 @@ async fn evaluator_mt(_c: &mut Criterion) {
         .sample_size(10);
 
     pools::init_mpz().await;
+    pools::init_rayon_worker().await;
 
     let circuit: Arc<Circuit> = AES128.clone();
     let gates_per_circuit = circuit.and_count() as u64;
@@ -109,25 +110,33 @@ async fn evaluator_mt(_c: &mut Criterion) {
                 let recorded_mt = recorded_mt.clone();
                 let circuit_clone = circuit_clone.clone();
                 async move {
-                    let mut total = Duration::ZERO;
-                    for _ in 0..iters {
-                        // Setup (untimed).
-                        let mut exec = body::replay_evaluator_mt(
-                            (*recorded_mt).clone(),
-                            circuit_clone.clone(),
-                            circuit_count,
-                        );
-                        // Timed.
-                        let start = Instant::now();
-                        body::run_evaluator_with_replay_mt(
-                            &mut exec,
-                            circuit_clone.clone(),
-                            circuit_count,
-                        )
-                        .await;
-                        total += start.elapsed();
-                    }
-                    total
+                    // `evaluate_garbled_circuits` is rayon-parallel under the
+                    // feature. With no pool installed the main thread gets
+                    // rayon's single-threaded fallback, so run the whole sample
+                    // on the persistent worker, where `pools.rs` installs a
+                    // real pool.
+                    pools::submit_rayon(move || {
+                        let mut total = Duration::ZERO;
+                        for _ in 0..iters {
+                            pools::tick();
+                            // Setup (untimed).
+                            let mut exec = body::replay_evaluator_mt(
+                                (*recorded_mt).clone(),
+                                circuit_clone.clone(),
+                                circuit_count,
+                            );
+                            // Timed.
+                            let start = Instant::now();
+                            futures::executor::block_on(body::run_evaluator_with_replay_mt(
+                                &mut exec,
+                                circuit_clone.clone(),
+                                circuit_count,
+                            ));
+                            total += start.elapsed();
+                        }
+                        total
+                    })
+                    .await
                 }
             }))
         })

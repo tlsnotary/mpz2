@@ -9,7 +9,12 @@
 //!     cargo +nightly bench --no-default-features --target
 //! wasm32-unknown-unknown \       --bench zk_prover -Zbuild-std=panic_abort,std
 
+#[cfg(feature = "rayon")]
+use core::time::Duration;
+
 use mpz_circuits::AES128;
+#[cfg(feature = "rayon")]
+use wasm_bindgen_test::Instant;
 use wasm_bindgen_test::{Criterion, wasm_bindgen_bench, wasm_bindgen_test_configure};
 
 #[path = "../../../zk/benches/support/prover_body.rs"]
@@ -38,6 +43,7 @@ async fn prover_mt(_c: &mut Criterion) {
     // Starts web_spawn and installs the global pool whose workers the MT replay
     // sessions run on.
     pools::init_mpz().await;
+    pools::init_rayon_worker().await;
 
     let and_count = AES128.and_count();
     for &(gate_count, name) in body::THRESHOLDS {
@@ -48,11 +54,24 @@ async fn prover_mt(_c: &mut Criterion) {
 
         c.bench_async_function(&format!("prover/mt/{name}"), move |b| {
             let recorded = recorded.clone();
-            Box::pin(b.iter_future(move || {
+            Box::pin(b.iter_custom_future(move |iters| {
                 let recorded = recorded.clone();
                 async move {
-                    let mut exec = body::replay_prover_mt(recorded, circuit_count);
-                    body::run_prover_with_replay_mt(&mut exec, circuit_count).await;
+                    pools::submit_rayon(move || {
+                        let mut total = Duration::ZERO;
+                        for _ in 0..iters {
+                            pools::tick();
+                            let mut exec = body::replay_prover_mt(recorded.clone(), circuit_count);
+                            let start = Instant::now();
+                            futures::executor::block_on(body::run_prover_with_replay_mt(
+                                &mut exec,
+                                circuit_count,
+                            ));
+                            total += start.elapsed();
+                        }
+                        total
+                    })
+                    .await
                 }
             }))
         })

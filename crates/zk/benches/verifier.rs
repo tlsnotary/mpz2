@@ -33,7 +33,8 @@ fn criterion_benchmark(c: &mut Criterion) {
 
             group.throughput(Throughput::Elements(actual_gates));
 
-            let (recorded, ot_seed, delta) = block_on(body::record_for_verifier_st(circuit_count, 0));
+            let (recorded, ot_seed, delta) =
+                block_on(body::record_for_verifier_st(circuit_count, 0));
 
             group.bench_function(BenchmarkId::new("st", name), |b| {
                 b.iter_batched(
@@ -87,7 +88,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         group_mt.finish();
     }
-    }
+}
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);

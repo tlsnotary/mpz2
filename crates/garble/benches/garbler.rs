@@ -3,8 +3,9 @@
 //! The ST/MT protocol bodies live in `support/garbler_body.rs`.
 //!
 //! Run with:
-//!   cargo bench -p mpz-garble --features mock --bench garbler           (ST only)
-//!   cargo bench -p mpz-garble --features "mock rayon" --bench garbler   (MT only)
+//!   cargo bench -p mpz-garble --features mock --bench garbler           (ST
+//! only)   cargo bench -p mpz-garble --features "mock rayon" --bench garbler
+//! (MT only)
 
 use std::sync::Arc;
 
@@ -43,7 +44,13 @@ fn criterion_benchmark(c: &mut Criterion) {
             let circuit_clone = circuit.clone();
             group.bench_function(BenchmarkId::new("st", name), |b| {
                 b.iter_batched(
-                    || body::replay_garbler_st(recorded.clone(), circuit_clone.clone(), circuit_count),
+                    || {
+                        body::replay_garbler_st(
+                            recorded.clone(),
+                            circuit_clone.clone(),
+                            circuit_count,
+                        )
+                    },
                     |mut ctx| {
                         block_on(body::run_garbler_with_replay_st(
                             &mut ctx,
@@ -103,7 +110,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         group_mt.finish();
     }
-    }
+}
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);

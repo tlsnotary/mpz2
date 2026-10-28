@@ -70,6 +70,7 @@ async fn ferret_receiver_mt(_c: &mut Criterion) {
         .sample_size(10);
 
     pools::init_mpz().await;
+    pools::init_rayon_worker().await;
 
     let recorded = Arc::new(body::record_for_receiver_mt(0, body::OT_COUNT).await);
 
@@ -78,16 +79,24 @@ async fn ferret_receiver_mt(_c: &mut Criterion) {
         Box::pin(b.iter_custom_future(move |iters| {
             let recorded = recorded.clone();
             async move {
-                let mut total = Duration::ZERO;
-                for _ in 0..iters {
-                    // Setup (untimed).
-                    let mut exec = body::replay_receiver_mt(recorded.data.clone());
-                    // Timed.
-                    let start = Instant::now();
-                    body::run_receiver_with_replay_mt(&mut exec, &recorded).await;
-                    total += start.elapsed();
-                }
-                total
+                // Rayon's `par_*` parks the calling thread, which is illegal on
+                // the browser main thread. Run on the persistent rayon worker.
+                pools::submit_rayon(move || {
+                    let mut total = Duration::ZERO;
+                    for _ in 0..iters {
+                        pools::tick();
+                        // Setup (untimed).
+                        let mut exec = body::replay_receiver_mt(recorded.data.clone());
+                        // Timed.
+                        let start = Instant::now();
+                        futures::executor::block_on(body::run_receiver_with_replay_mt(
+                            &mut exec, &recorded,
+                        ));
+                        total += start.elapsed();
+                    }
+                    total
+                })
+                .await
             }
         }))
     })
