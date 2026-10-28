@@ -87,8 +87,25 @@ jobs:
         working-directory: crates/wasm-bench
         run: cargo +nightly build --benches
 
+  changes:
+    name: "Detect Miri-relevant changes"
+    runs-on: ubuntu-latest
+    outputs:
+      miri: ${{ steps.detect.outputs.miri }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # PRs diff against the base commit, pushes against the previous tip.
+      # An empty or unknown base makes the script report true, i.e. run Miri.
+      - id: detect
+        env:
+          BASE_REV: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: echo "miri=$(./scripts/ci/miri-changed.sh "$BASE_REV")" >> "$GITHUB_OUTPUT"
+
   miri:
-    if: ( ! github.event.pull_request.draft )
+    needs: changes
+    if: "(github.event_name == 'workflow_dispatch' || needs.changes.outputs.miri == 'true') && ! github.event.pull_request.draft"
     name: "Test with Miri"
     runs-on: ubuntu-latest
     env:
