@@ -60,16 +60,35 @@ jobs:
       - name: Run Clippy
         run: cargo +nightly clippy --workspace --exclude mpz-wasm-bench --all-targets --all-features -- -D warnings
 
+      - name: Run Clippy on wasm-bench
+        working-directory: crates/wasm-bench
+        run: cargo +nightly clippy --benches -- -D warnings
+
+  clippy_no_default:
+    name: "Clippy (no default features)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Native crates only: no wasm target and no rust-src (build-std) needed.
+      - name: Install Rust Nightly with clippy
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2.7.7
+        with:
+          # Own entry: this job builds a different feature set than the lint
+          # job, and sharing a key would make the two overwrite each other.
+          key: clippy-no-default
+
       # Covers the cfg(not(feature = "...")) branches that --all-features can
       # never compile. One cargo invocation per crate: features are unified
       # across packages selected together, so a single minimal build does not
       # exist for the workspace.
       - name: Run Clippy with no default features
         run: ./scripts/ci/clippy-no-default.sh
-
-      - name: Run Clippy on wasm-bench
-        working-directory: crates/wasm-bench
-        run: cargo +nightly clippy --benches -- -D warnings
 
   wasm:
     name: "Build WASM benches"
