@@ -60,6 +60,13 @@ jobs:
       - name: Run Clippy
         run: cargo +nightly clippy --workspace --exclude mpz-wasm-bench --all-targets --all-features -- -D warnings
 
+      # Covers the cfg(not(feature = "...")) branches that --all-features can
+      # never compile. One cargo invocation per crate: features are unified
+      # across packages selected together, so a single minimal build does not
+      # exist for the workspace.
+      - name: Run Clippy with no default features
+        run: ./scripts/ci/clippy-no-default.sh
+
       - name: Run Clippy on wasm-bench
         working-directory: crates/wasm-bench
         run: cargo +nightly clippy --benches -- -D warnings
