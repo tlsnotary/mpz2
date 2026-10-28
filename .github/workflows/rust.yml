@@ -64,6 +64,32 @@ jobs:
         working-directory: crates/wasm-bench
         run: cargo +nightly clippy --benches -- -D warnings
 
+  clippy_no_default:
+    name: "Clippy (no default features)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Native crates only: no wasm target and no rust-src (build-std) needed.
+      - name: Install Rust Nightly with clippy
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2.7.7
+        with:
+          # Own entry: this job builds a different feature set than the lint
+          # job, and sharing a key would make the two overwrite each other.
+          key: clippy-no-default
+
+      # Covers the cfg(not(feature = "...")) branches that --all-features can
+      # never compile. One cargo invocation per crate: features are unified
+      # across packages selected together, so a single minimal build does not
+      # exist for the workspace.
+      - name: Run Clippy with no default features
+        run: ./scripts/ci/clippy-no-default.sh
+
   wasm:
     name: "Build WASM benches"
     runs-on: ubuntu-latest
@@ -87,8 +113,25 @@ jobs:
         working-directory: crates/wasm-bench
         run: cargo +nightly build --benches
 
+  changes:
+    name: "Detect Miri-relevant changes"
+    runs-on: ubuntu-latest
+    outputs:
+      miri: ${{ steps.detect.outputs.miri }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # PRs diff against the base commit, pushes against the previous tip.
+      # An empty or unknown base makes the script report true, i.e. run Miri.
+      - id: detect
+        env:
+          BASE_REV: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: echo "miri=$(./scripts/ci/miri-changed.sh "$BASE_REV")" >> "$GITHUB_OUTPUT"
+
   miri:
-    if: ( ! github.event.pull_request.draft )
+    needs: changes
+    if: "(github.event_name == 'workflow_dispatch' || needs.changes.outputs.miri == 'true') && ! github.event.pull_request.draft"
     name: "Test with Miri"
     runs-on: ubuntu-latest
     env:

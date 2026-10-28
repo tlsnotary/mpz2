@@ -105,7 +105,7 @@ impl<const D: usize> LpnEncoder<D> {
 
                 let iter = y.par_chunks_exact_mut(4).enumerate();
             }else{
-                let iter = y.chunks_exact_mut(4).enumerate();
+                let iter = y.as_chunks_mut::<4>().0.iter_mut().enumerate();
             }
         }
 
