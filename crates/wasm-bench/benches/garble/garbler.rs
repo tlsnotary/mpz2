@@ -17,6 +17,7 @@ use mpz_circuits::{AES128, Circuit};
 use wasm_bindgen_test::{Criterion, Instant, wasm_bindgen_bench, wasm_bindgen_test_configure};
 
 #[path = "../../../garble/benches/support/garbler_body.rs"]
+#[allow(dead_code)] // The gated-out mode\'s body functions are unused.
 mod body;
 #[path = "../support/pools.rs"]
 mod pools;
@@ -27,6 +28,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 // of `iter_custom_future`, so only `run_*_with_replay` is measured.
 
 /// Single-threaded garbler.
+#[cfg(not(feature = "rayon"))]
 #[wasm_bindgen_bench]
 async fn garbler_st(_c: &mut Criterion) {
     // Native benches use sample_size(10); the macro's criterion can't be
@@ -81,6 +83,7 @@ async fn garbler_st(_c: &mut Criterion) {
 }
 
 /// Multi-threaded garbler.
+#[cfg(feature = "rayon")]
 #[wasm_bindgen_bench]
 async fn garbler_mt(_c: &mut Criterion) {
     // Native benches use sample_size(10); the macro's criterion can't be

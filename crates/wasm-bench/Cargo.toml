@@ -6,18 +6,29 @@ edition = "2024"
 [lints]
 workspace = true
 
+[features]
+default = []
+rayon = [
+    "mpz-ot/rayon",
+    "mpz-ot-core/rayon",
+    "mpz-zk/rayon",
+    "mpz-zk-core/rayon",
+    "mpz-garble/rayon",
+    "mpz-garble-core/rayon",
+]
+
 [dependencies]
 mpz-garble-core = { workspace = true }
 mpz-garble = { workspace = true }
-mpz-zk-core = { workspace = true, features = ["rayon"] }
-mpz-zk = { workspace = true, features = ["rayon"] }
+mpz-zk-core = { workspace = true }
+mpz-zk = { workspace = true }
 pollster = { workspace = true }
 mpz-circuits = { workspace = true, features = ["aes"] }
 mpz-memory-core = { workspace = true }
 mpz-core = { workspace = true }
 mpz-common = { workspace = true, features = ["test-utils"] }
-mpz-ot = { workspace = true, features = ["ideal", "rayon"] }
-mpz-ot-core = { workspace = true, features = ["rayon"] }
+mpz-ot = { workspace = true, features = ["ideal"] }
+mpz-ot-core = { workspace = true }
 mpz-vm-core = { workspace = true }
 blake3 = { workspace = true }
 

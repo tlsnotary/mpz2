@@ -13,6 +13,7 @@ use mpz_circuits::AES128;
 use wasm_bindgen_test::{Criterion, wasm_bindgen_bench, wasm_bindgen_test_configure};
 
 #[path = "../../../zk/benches/support/prover_body.rs"]
+#[allow(dead_code)] // The gated-out mode\'s body functions are unused.
 mod body;
 #[path = "../support/pools.rs"]
 mod pools;
@@ -25,8 +26,9 @@ wasm_bindgen_test_configure!(run_in_browser);
 // 1800.
 
 /// Multi-threaded prover (`prover/mt/*`).
+#[cfg(feature = "rayon")]
 #[wasm_bindgen_bench]
-async fn prover(_c: &mut Criterion) {
+async fn prover_mt(_c: &mut Criterion) {
     // Native benches use sample_size(10); the macro's criterion can't be
     // reconfigured.
     let mut c = Criterion::default()
@@ -60,6 +62,7 @@ async fn prover(_c: &mut Criterion) {
 
 /// Single-threaded prover (`prover/st/*`). No workers/global pool required;
 /// the futures are driven by the JS event loop.
+#[cfg(not(feature = "rayon"))]
 #[wasm_bindgen_bench]
 async fn prover_st(_c: &mut Criterion) {
     // Native benches use sample_size(10); the macro's criterion can't be

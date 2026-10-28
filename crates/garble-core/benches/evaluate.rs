@@ -41,8 +41,12 @@ fn bench_evaluate(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_evaluate_parallel(c: &mut Criterion) {
-    let mut group = c.benchmark_group("evaluate_parallel");
+/// Bulk evaluation across many circuits (`evaluate_garbled_circuits`).
+///
+/// Not rayon-specific: without the `rayon` feature this measures the same
+/// serial loop which `execute_preprocessed` uses in a non-rayon build.
+fn bench_evaluate_bulk(c: &mut Criterion) {
+    let mut group = c.benchmark_group("evaluate");
     group.sample_size(10);
 
     let gates_per_circuit = AES128.and_count() as u64;
@@ -54,7 +58,7 @@ fn bench_evaluate_parallel(c: &mut Criterion) {
         group.throughput(Throughput::Elements(actual_gates));
 
         let bench = EvaluateParallelBench::new(circuit_count);
-        group.bench_function(BenchmarkId::new("rayon", name), |b| {
+        group.bench_function(BenchmarkId::new("bulk", name), |b| {
             b.iter_batched(
                 || bench.circs(),
                 body::evaluate,
@@ -66,5 +70,5 @@ fn bench_evaluate_parallel(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_evaluate, bench_evaluate_parallel);
+criterion_group!(benches, bench_evaluate, bench_evaluate_bulk);
 criterion_main!(benches);
