@@ -9,12 +9,14 @@ So far exact and regular LPN over F_2 are supported.
   from the paper, which we forked from <https://github.com/RabbitCabbage/LPN-Estimator>
 - `src/lpn.rs` is our own implementation
 
-In `src/bin` there are executable binaries:
+In `src/bin` there are executable binaries to confirm the bit security of a
+chosen `(n, k, t)` instance:
 
 - `exact.rs` estimates the bit security for an exact LPN instance.
 - `regular.rs` estimates the bit security for a regular LPN instance.
-- `estimator.rs` does code generation by creating a static array of LPN
-  instances satisfying a minium bit security. This is used in
-  `crates/ot-core/ferret/config/`. For example `cargo run --release --bin
-  estimator -- regular 128 1200 > ../ot-core/src/ferret/config/regular.rs`
-  will do code generation for regular LPN instances.
+
+For example `cargo run --release --bin regular -- 6225920 262144 1520` reports
+the security of one of Ferret's regular-LPN presets. The Ferret parameter table
+in `crates/ot-core/src/ferret/config/regular.rs` is curated by hand (adapted
+from EMP-OT's tuning presets) and verified with these binaries — this crate no
+longer generates that file.

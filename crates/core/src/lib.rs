@@ -2,18 +2,20 @@
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 
+#[cfg(not(target_endian = "little"))]
+compile_error!("mpz requires a little-endian target; big-endian hosts are not supported");
+
 pub mod aes;
 pub mod bitvec;
 pub mod block;
+pub mod cggm;
 pub mod commit;
-pub mod ggm;
 pub mod hash;
 pub mod lpn;
 pub mod prg;
 pub mod prp;
 pub mod rand;
 pub mod serialize;
-pub mod tkprp;
 pub mod utils;
 
 pub use block::{Block, BlockSerialize};

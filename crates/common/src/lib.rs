@@ -15,6 +15,9 @@
     clippy::all
 )]
 
+#[cfg(not(target_endian = "little"))]
+compile_error!("mpz requires a little-endian target; big-endian hosts are not supported");
+
 pub mod context;
 #[cfg(any(test, feature = "future"))]
 pub mod future;

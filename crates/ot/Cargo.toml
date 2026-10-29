@@ -14,6 +14,8 @@ default = []
 rayon = ["mpz-ot-core/rayon"]
 ideal = ["mpz-common/ideal", "serde"]
 test-utils = ["mpz-ot-core/test-utils", "mpz-common/test-utils"]
+# Byte-for-byte compatibility with emp-ot (see `mpz-core/emp`).
+emp = ["mpz-ot-core/emp"]
 
 [dependencies]
 mpz-core.workspace = true

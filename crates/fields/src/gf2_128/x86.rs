@@ -1,5 +1,9 @@
 //! x86_64 PCLMULQDQ fast path for GF(2¹²⁸). Multiply and inner-product
 //! share carry-less multiply (`clmul128`) and reduction (`reduce128`).
+//!
+//! Entry points are `#[target_feature(enable = "pclmulqdq")]`: when the
+//! crate is compiled with the feature they are called directly, otherwise
+//! the `autodetect` backend dispatches to them after runtime detection.
 #![allow(unsafe_code)]
 
 use std::arch::x86_64::*;
@@ -8,10 +12,11 @@ use crate::spread::bit_spread_u32;
 
 use super::Gf2_128;
 
-#[inline(always)]
+#[inline]
+#[target_feature(enable = "pclmulqdq")]
 pub(super) fn mul(a: u128, b: u128) -> u128 {
-    // SAFETY: gated on `target_feature = "pclmulqdq"`, SSE2 + PCLMULQDQ
-    // are guaranteed available.
+    // SAFETY: `target_feature(enable = "pclmulqdq")` on this function
+    // guarantees SSE2 + PCLMULQDQ are available in its body.
     unsafe {
         let a_vec = load(a);
         let b_vec = load(b);
@@ -60,7 +65,8 @@ fn reduce128_scalar(lo: u128, hi: u128) -> u128 {
 /// state in XMM across all 127 squarings + 126 accumulating multiplies,
 /// collapsing 254 GPR↔XMM transfers down to 2. Uses the 2-CLMUL
 /// squaring path on the squaring half of the chain.
-#[inline(always)]
+#[inline]
+#[target_feature(enable = "pclmulqdq")]
 pub(super) fn inverse(a: u128) -> u128 {
     // SAFETY: see `mul`.
     unsafe {
@@ -92,7 +98,8 @@ unsafe fn square_xmm(a: __m128i) -> __m128i {
     }
 }
 
-#[inline(always)]
+#[inline]
+#[target_feature(enable = "pclmulqdq")]
 pub(super) fn inner_product(a: &[Gf2_128], b: &[Gf2_128]) -> u128 {
     // SAFETY: see `mul`.
     unsafe {
@@ -114,7 +121,8 @@ pub(super) fn inner_product(a: &[Gf2_128], b: &[Gf2_128]) -> u128 {
 /// intermediate (needed as a 128-bit operand for the second CLMUL), then
 /// a single post-loop reduction on the accumulated `(aᵢbᵢ)·cᵢ` carry-less
 /// products — vs. the naive fold which pays two reductions per iteration.
-#[inline(always)]
+#[inline]
+#[target_feature(enable = "pclmulqdq")]
 pub(super) fn double_inner_product(a: &[Gf2_128], b: &[Gf2_128], c: &[Gf2_128]) -> u128 {
     // SAFETY: see `mul`.
     unsafe {

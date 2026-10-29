@@ -1,0 +1,13 @@
+diff --git a/emp-ot/ot_extension/ferret/ferret.h b/emp-ot/ot_extension/ferret/ferret.h
+index fa88243..2b0ebf9 100644
+--- a/emp-ot/ot_extension/ferret/ferret.h
++++ b/emp-ot/ot_extension/ferret/ferret.h
+@@ -156,7 +156,7 @@ protected:
+ 	// reuse the bootstrap / buffers / LPN / round-end machinery and
+ 	// override only the per-tree body. process_one_tree_ is virtual so
+ 	// the inherited next() / run_refill_ dispatch to the override.
+-	void bootstrap_();
++	virtual void bootstrap_();
+ 	void inner_run_begin_();
+ 	virtual void process_one_tree_(AuthValueFerret *out);
+ 	void inner_run_end_();

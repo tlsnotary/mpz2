@@ -1,4 +1,4 @@
-use lpn_estimator::{LpnEstimator, LpnParams, LpnType};
+use lpn_estimator::LpnEstimator;
 
 fn main() {
     divan::main();
@@ -19,14 +19,4 @@ fn exact((n, k, t): (u64, u64, u64)) -> f64 {
 #[divan::bench(args = N, max_time = 10)]
 fn regular((n, k, t): (u64, u64, u64)) -> f64 {
     LpnEstimator::security_for_binary_regular(n, k, t)
-}
-
-#[divan::bench(max_time = 10)]
-fn scan_exact() {
-    LpnParams::scan(LpnType::Exact, 128., N[1].1, None);
-}
-
-#[divan::bench(max_time = 10)]
-fn scan_regular() {
-    LpnParams::scan(LpnType::Regular, 128., N[1].1, None);
 }

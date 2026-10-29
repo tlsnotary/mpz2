@@ -55,6 +55,9 @@
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(all(clmul_armv8, target_arch = "aarch64"), feature(stdsimd))]
 
+#[cfg(not(target_endian = "little"))]
+compile_error!("mpz requires a little-endian target; big-endian hosts are not supported");
+
 mod backend;
 pub use backend::Clmul;
 
