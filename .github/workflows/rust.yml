@@ -60,9 +60,11 @@ jobs:
       - name: Run Clippy
         run: cargo +nightly clippy --workspace --exclude mpz-wasm-bench --all-targets --all-features -- -D warnings
 
+      # `--all-features` selects the MT benches; the `{}` configuration is
+      # covered by the no-default-features lane below.
       - name: Run Clippy on wasm-bench
         working-directory: crates/wasm-bench
-        run: cargo +nightly clippy --benches -- -D warnings
+        run: cargo +nightly clippy --benches --all-features -- -D warnings
 
   clippy_no_default:
     name: "Clippy (no default features)"
@@ -70,12 +72,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Native crates only: no wasm target and no rust-src (build-std) needed.
+      # mpz-wasm-bench is included here too, so this lane needs the wasm target
+      # and rust-src (`-Zbuild-std`).
       - name: Install Rust Nightly with clippy
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
-          components: clippy
+          components: clippy, rust-src
+          targets: wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2.7.7
         with:

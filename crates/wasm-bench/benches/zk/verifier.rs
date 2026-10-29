@@ -10,10 +10,16 @@
 //! wasm32-unknown-unknown \       --bench zk_verifier
 //! -Zbuild-std=panic_abort,std
 
+#[cfg(feature = "rayon")]
+use core::time::Duration;
+
 use mpz_circuits::AES128;
+#[cfg(feature = "rayon")]
+use wasm_bindgen_test::Instant;
 use wasm_bindgen_test::{Criterion, wasm_bindgen_bench, wasm_bindgen_test_configure};
 
 #[path = "../../../zk/benches/support/verifier_body.rs"]
+#[allow(dead_code)] // The gated-out mode\'s body functions are unused.
 mod body;
 #[path = "../support/pools.rs"]
 mod pools;
@@ -26,8 +32,9 @@ wasm_bindgen_test_configure!(run_in_browser);
 // 1800.
 
 /// Multi-threaded verifier (`verifier/mt/*`).
+#[cfg(feature = "rayon")]
 #[wasm_bindgen_bench]
-async fn verifier(_c: &mut Criterion) {
+async fn verifier_mt(_c: &mut Criterion) {
     // Native benches use sample_size(10); the macro's criterion can't be
     // reconfigured.
     let mut c = Criterion::default()
@@ -37,6 +44,7 @@ async fn verifier(_c: &mut Criterion) {
     // Starts web_spawn and installs the global pool whose workers the MT replay
     // sessions run on.
     pools::init_mpz().await;
+    pools::init_rayon_worker().await;
 
     let and_count = AES128.and_count();
     for &(gate_count, name) in body::THRESHOLDS {
@@ -47,12 +55,27 @@ async fn verifier(_c: &mut Criterion) {
 
         c.bench_async_function(&format!("verifier/mt/{name}"), move |b| {
             let recorded = recorded.clone();
-            Box::pin(b.iter_future(move || {
+            Box::pin(b.iter_custom_future(move |iters| {
                 let recorded = recorded.clone();
                 async move {
-                    let mut exec = body::replay_verifier_mt(recorded, circuit_count);
-                    body::run_verifier_with_replay_mt(&mut exec, circuit_count, delta, ot_seed)
-                        .await;
+                    pools::submit_rayon(move || {
+                        let mut total = Duration::ZERO;
+                        for _ in 0..iters {
+                            pools::tick();
+                            let mut exec =
+                                body::replay_verifier_mt(recorded.clone(), circuit_count);
+                            let start = Instant::now();
+                            futures::executor::block_on(body::run_verifier_with_replay_mt(
+                                &mut exec,
+                                circuit_count,
+                                delta,
+                                ot_seed,
+                            ));
+                            total += start.elapsed();
+                        }
+                        total
+                    })
+                    .await
                 }
             }))
         })
@@ -62,6 +85,7 @@ async fn verifier(_c: &mut Criterion) {
 
 /// Single-threaded verifier (`verifier/st/*`). No workers/global pool required;
 /// the futures are driven by the JS event loop.
+#[cfg(not(feature = "rayon"))]
 #[wasm_bindgen_bench]
 async fn verifier_st(_c: &mut Criterion) {
     // Native benches use sample_size(10); the macro's criterion can't be

@@ -14,7 +14,9 @@
 #   clippy-no-default.sh              # discover every feature-bearing crate
 #   clippy-no-default.sh -p a -p b    # (or positional names) limit the run
 #
-# mpz-wasm-bench is excluded: it is wasm-target-only and has its own lane.
+# mpz-wasm-bench is wasm-target-only, so it is linted with `--benches` from
+# inside the member: its `.cargo/config.toml` selects the wasm target and
+# `-Zbuild-std`, and cargo only reads it from there.
 set -euo pipefail
 
 root=$(git rev-parse --show-toplevel)
@@ -30,7 +32,7 @@ import json
 import sys
 
 for pkg in json.load(sys.stdin)["packages"]:
-    if pkg["features"] and pkg["name"] != "mpz-wasm-bench":
+    if pkg["features"]:
         print(pkg["name"])
 '
     )
@@ -48,7 +50,14 @@ for pkg in "${packages[@]}"; do
     else
         echo "== clippy -p $pkg --no-default-features"
     fi
-    if ! cargo +nightly clippy -p "$pkg" --no-default-features --lib -- -D warnings; then
+    if [[ $pkg == mpz-wasm-bench ]]; then
+        # Benches only (no lib target), and from inside the member so its
+        # `.cargo/config.toml` (wasm target + build-std) applies.
+        if ! (cd crates/wasm-bench &&
+            cargo +nightly clippy --benches --no-default-features -- -D warnings); then
+            failed+=("$pkg")
+        fi
+    elif ! cargo +nightly clippy -p "$pkg" --no-default-features --lib -- -D warnings; then
         failed+=("$pkg")
     fi
     if [[ -n ${GITHUB_ACTIONS:-} ]]; then

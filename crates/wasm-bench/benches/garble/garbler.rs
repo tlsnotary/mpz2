@@ -17,6 +17,7 @@ use mpz_circuits::{AES128, Circuit};
 use wasm_bindgen_test::{Criterion, Instant, wasm_bindgen_bench, wasm_bindgen_test_configure};
 
 #[path = "../../../garble/benches/support/garbler_body.rs"]
+#[allow(dead_code)] // The gated-out mode\'s body functions are unused.
 mod body;
 #[path = "../support/pools.rs"]
 mod pools;
@@ -27,6 +28,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 // of `iter_custom_future`, so only `run_*_with_replay` is measured.
 
 /// Single-threaded garbler.
+#[cfg(not(feature = "rayon"))]
 #[wasm_bindgen_bench]
 async fn garbler_st(_c: &mut Criterion) {
     // Native benches use sample_size(10); the macro's criterion can't be
@@ -81,6 +83,7 @@ async fn garbler_st(_c: &mut Criterion) {
 }
 
 /// Multi-threaded garbler.
+#[cfg(feature = "rayon")]
 #[wasm_bindgen_bench]
 async fn garbler_mt(_c: &mut Criterion) {
     // Native benches use sample_size(10); the macro's criterion can't be
@@ -90,6 +93,7 @@ async fn garbler_mt(_c: &mut Criterion) {
         .sample_size(10);
 
     pools::init_mpz().await;
+    pools::init_rayon_worker().await;
 
     let circuit: Arc<Circuit> = AES128.clone();
     let gates_per_circuit = circuit.and_count() as u64;
@@ -109,26 +113,32 @@ async fn garbler_mt(_c: &mut Criterion) {
                 let recorded_mt = recorded_mt.clone();
                 let circuit_clone = circuit_clone.clone();
                 async move {
-                    let mut total = Duration::ZERO;
-                    for _ in 0..iters {
-                        // Setup (untimed).
-                        let mut exec = body::replay_garbler_mt(
-                            (*recorded_mt).clone(),
-                            circuit_clone.clone(),
-                            circuit_count,
-                        );
-                        // Timed.
-                        let start = Instant::now();
-                        body::run_garbler_with_replay_mt(
-                            &mut exec,
-                            circuit_clone.clone(),
-                            circuit_count,
-                            delta_mt,
-                        )
-                        .await;
-                        total += start.elapsed();
-                    }
-                    total
+                    // The garbling path has no rayon calls, but run it on the
+                    // same persistent worker as the other MT benches so the
+                    // whole MT suite is measured in one place.
+                    pools::submit_rayon(move || {
+                        let mut total = Duration::ZERO;
+                        for _ in 0..iters {
+                            pools::tick();
+                            // Setup (untimed).
+                            let mut exec = body::replay_garbler_mt(
+                                (*recorded_mt).clone(),
+                                circuit_clone.clone(),
+                                circuit_count,
+                            );
+                            // Timed.
+                            let start = Instant::now();
+                            futures::executor::block_on(body::run_garbler_with_replay_mt(
+                                &mut exec,
+                                circuit_clone.clone(),
+                                circuit_count,
+                                delta_mt,
+                            ));
+                            total += start.elapsed();
+                        }
+                        total
+                    })
+                    .await
                 }
             }))
         })

@@ -40,6 +40,13 @@ cargo bench --bench zk_prover   # one bench
 cargo bench                     # every bench
 ```
 
+MT benches are behind the `rayon` feature; without it only the ST benches are
+built:
+
+```sh
+cargo bench --bench ot_ferret_sender --features rayon
+```
+
 `webdriver.json` (auto-loaded from this directory by `wasm-bindgen-test-runner`)
 raises ChromeDriver's default 30 second script timeout to match
 `WASM_BINDGEN_TEST_TIMEOUT`. Without it, any benchmark whose synchronous body
