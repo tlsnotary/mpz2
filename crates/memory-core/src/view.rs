@@ -48,14 +48,17 @@ impl VisibilityView {
         &self.visible
     }
 
-    /// Returns `true` if all data in the range is set.
+    /// Returns `true` if all data in the range is allocated and set.
     pub fn is_set(&self, range: Range) -> bool {
-        range.is_disjoint(&self.uninit)
+        range.end <= self.len && range.is_disjoint(&self.uninit)
     }
 
-    /// Returns `true` if any data in the range is set.
+    /// Returns `true` if any allocated data in the range is set.
     pub fn is_set_any(&self, range: Range) -> bool {
-        range.difference(&self.uninit).next().is_some()
+        let start = range.start.min(self.len);
+        let end = range.end.min(self.len);
+
+        start < end && (start..end).difference(&self.uninit).next().is_some()
     }
 
     /// Returns `true` if all data in the range is visible.
@@ -98,8 +101,19 @@ impl VisibilityView {
         !range.is_disjoint(&self.blind)
     }
 
+    /// Asserts that the range is within allocated memory.
+    fn assert_allocated(&self, range: &Range) {
+        assert!(
+            range.end <= self.len,
+            "range {range:?} exceeds allocated memory of length {}",
+            self.len
+        );
+    }
+
     /// Sets the range as public.
     pub fn set_public(&mut self, range: Range) {
+        self.assert_allocated(&range);
+
         self.public |= &range;
         self.visible |= &range;
         self.uninit -= &range;
@@ -109,6 +123,8 @@ impl VisibilityView {
 
     /// Sets the range as private.
     pub fn set_private(&mut self, range: Range) {
+        self.assert_allocated(&range);
+
         self.private |= &range;
         self.visible |= &range;
         self.uninit -= &range;
@@ -118,6 +134,8 @@ impl VisibilityView {
 
     /// Sets the range as blind.
     pub fn set_blind(&mut self, range: Range) {
+        self.assert_allocated(&range);
+
         self.blind |= &range;
         self.visible -= &range;
         self.uninit -= &range;
@@ -165,6 +183,7 @@ mod tests {
     #[test]
     fn test_mutually_exclusive() {
         let mut view = VisibilityView::new();
+        view.alloc(15);
 
         view.set_public(0..10);
         view.set_private(5..15);
@@ -177,5 +196,33 @@ mod tests {
         assert!(view.is_blind(5..10));
         assert!(!view.is_public(0..10));
         assert!(!view.is_private(5..15));
+    }
+
+    #[test]
+    fn unallocated_range_is_not_set() {
+        let mut view = VisibilityView::new();
+        view.alloc(10);
+        view.set_public(0..10);
+
+        assert!(view.is_set(0..10));
+        assert!(view.is_set_any(0..10));
+
+        // Fully out of bounds.
+        assert!(!view.is_set(10..20));
+        assert!(!view.is_set_any(10..20));
+
+        // Partially out of bounds: the allocated prefix is set, but not all
+        // of the range is.
+        assert!(!view.is_set(5..15));
+        assert!(view.is_set_any(5..15));
+    }
+
+    #[test]
+    #[should_panic(expected = "exceeds allocated memory")]
+    fn setting_visibility_out_of_bounds_panics() {
+        let mut view = VisibilityView::new();
+        view.alloc(10);
+
+        view.set_public(10..20);
     }
 }
