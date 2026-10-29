@@ -1,6 +1,9 @@
 //! This crate provides types for representing computation as binary circuits.
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 
+#[cfg(not(target_endian = "little"))]
+compile_error!("mpz requires a little-endian target; big-endian hosts are not supported");
+
 extern crate self as mpz_circuits;
 
 mod builder;
