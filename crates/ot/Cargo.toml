@@ -46,10 +46,8 @@ mpz-ot-core = { workspace = true, features = ["test-utils"] }
 rstest = { workspace = true }
 criterion = { workspace = true, features = ["async_tokio"] }
 tokio = { workspace = true, features = [
-    "net",
     "macros",
     "rt",
-    "rt-multi-thread",
 ] }
 
 [[bench]]
@@ -66,3 +64,9 @@ path = "benches/ferret/sender.rs"
 name = "ferret_receiver"
 harness = false
 path = "benches/ferret/receiver.rs"
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = [
+    "net",
+    "rt-multi-thread",
+] }

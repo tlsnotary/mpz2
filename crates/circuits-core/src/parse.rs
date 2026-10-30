@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_parse_adder_64() {
-        let circ = Circuit::parse("bristol/adder64_reverse.txt").unwrap();
+        let circ = Circuit::parse_str(include_str!("../bristol/adder64_reverse.txt")).unwrap();
         let (a, b) = (59u64, 101312320u64);
         let output =
             u64::from_lsb0_iter(circ.evaluate(a.iter_lsb0().chain(b.iter_lsb0())).unwrap());

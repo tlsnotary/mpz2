@@ -27,10 +27,8 @@ serio = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = [
-    "net",
     "macros",
     "rt",
-    "rt-multi-thread",
 ] }
 rand = { workspace = true }
 mpz-circuits = { workspace = true, features = ["aes"] }
@@ -51,3 +49,9 @@ required-features = ["mock"]
 name = "verifier"
 harness = false
 required-features = ["mock"]
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = [
+    "net",
+    "rt-multi-thread",
+] }

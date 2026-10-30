@@ -27,8 +27,12 @@ mpz-circuits = { workspace = true, features = ["aes"] }
 mpz-common = { workspace = true, features = ["test-utils"] }
 rstest = { workspace = true }
 tokio = { workspace = true, features = [
-    "net",
     "macros",
     "rt",
+] }
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = [
+    "net",
     "rt-multi-thread",
 ] }

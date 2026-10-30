@@ -43,10 +43,8 @@ mpz-common = { workspace = true, features = ["test-utils", "ideal"] }
 mpz-ot = { workspace = true, features = ["ideal"] }
 rstest = { workspace = true }
 tokio = { workspace = true, features = [
-    "net",
     "macros",
     "rt",
-    "rt-multi-thread",
 ] }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
 
@@ -59,3 +57,9 @@ required-features = ["mock"]
 name = "garbler"
 harness = false
 required-features = ["mock"]
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = [
+    "net",
+    "rt-multi-thread",
+] }

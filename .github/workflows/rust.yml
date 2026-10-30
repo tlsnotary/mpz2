@@ -117,6 +117,46 @@ jobs:
         working-directory: crates/wasm-bench
         run: cargo +nightly build --benches
 
+  wasm_tests:
+    name: "Test WASI threads under V8"
+    runs-on: ubuntu-latest
+    env:
+      # Pin the engine so a stray wasmtime install can't change what runs.
+      WASM_HARNESS_ENGINE: v8
+      # wasm's libstd reports one core, and the runner script maps
+      # WASM_HARNESS_ENV_* into the guest. Cap rayon to keep V8 workers low.
+      WASM_HARNESS_ENV_RAYON_NUM_THREADS: "2"
+      RAYON_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32-wasip1-threads
+
+      - uses: Swatinem/rust-cache@v2.7.7
+        with:
+          # Own entry: this lane builds a different target than the host jobs.
+          key: wasm-tests
+
+      - name: Install wasm-harness
+        # Exact pin: a bare "0.2.1" is a caret range and may pick up 0.2.x.
+        run: cargo install wasm-harness --version '=0.2.1' --locked
+
+      # jsvu installs the V8 shell (d8) to ~/.jsvu/bin, which wasm-harness
+      # searches automatically.
+      - name: Install V8
+        run: |
+          npm install -g jsvu
+          jsvu --os=linux64 --engines=v8
+
+      # mpz-wasm-bench is the browser lane (wasm32-unknown-unknown); it has its
+      # own target/runner and is not part of the WASI test suite.
+      - name: Run tests under V8
+        run: cargo test --workspace --exclude mpz-wasm-bench --target wasm32-wasip1-threads --no-fail-fast
+
   changes:
     name: "Detect Miri-relevant changes"
     runs-on: ubuntu-latest

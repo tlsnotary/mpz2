@@ -32,10 +32,8 @@ itybity.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = [
-    "net",
     "macros",
     "rt",
-    "rt-multi-thread",
 ] }
 mpz-common = { workspace = true, features = [
     "test-utils",
@@ -44,3 +42,9 @@ mpz-common = { workspace = true, features = [
 ] }
 mpz-ot = { workspace = true, features = ["ideal"] }
 mpz-ole-core = { workspace = true, features = ["test-utils"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = [
+    "net",
+    "rt-multi-thread",
+] }
