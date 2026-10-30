@@ -26,11 +26,15 @@ rstest = { workspace = true }
 sha2 = { workspace = true }
 sha3 = { workspace = true }
 tokio = { workspace = true, features = [
-    "net",
     "macros",
     "rt",
-    "rt-multi-thread",
 ] }
 
 [lints]
 workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = [
+    "net",
+    "rt-multi-thread",
+] }

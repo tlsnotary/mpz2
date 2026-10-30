@@ -33,8 +33,7 @@ async-task = { workspace = true }
 tokio = { workspace = true, features = [
     "io-util",
     "macros",
-    "rt-multi-thread",
-    "net",
+    "rt",
 ] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
@@ -45,3 +44,9 @@ rstest = { workspace = true }
 name = "io"
 path = "benches/io.rs"
 harness = false
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = [
+    "net",
+    "rt-multi-thread",
+] }

@@ -389,6 +389,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(
+        target_family = "wasm",
+        ignore = "wasm-harness JS WASI driver does not implement poll_oneoff/sleep"
+    )]
     fn test_pool_drop_shuts_down() {
         let pool = ThreadPool::builder().num_threads(2).build().unwrap();
         let weak = Arc::downgrade(&pool.inner);
