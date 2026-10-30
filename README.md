@@ -1,4 +1,4 @@
-[![CI](https://github.com/privacy-scaling-explorations/mpz/actions/workflows/rust.yml/badge.svg)](https://github.com/privacy-scaling-explorations/mpz/actions)
+[![CI](https://github.com/tlsnotary/mpz2/actions/workflows/rust.yml/badge.svg)](https://github.com/tlsnotary/mpz2/actions)
 
 <p align="center">
     <img src="./mpz-banner.png" width=1280 />
@@ -16,41 +16,23 @@ See [our design doc](./DESIGN.md) for information on design choices, standards a
 
 This project is currently under active development and should not be used in production. Expect bugs and regular major breaking changes. Use at your own risk.
 
-## Crates
+## Protocol crates
 
-  - [`core`](./crates/core/) - Core cryptographic primitives.
-  - [`common`](./crates/common) - Common functionalities needed for modeling protocol execution, I/O, and multi-threading.
-  - [`fields`](./crates/fields/) - Finite-fields.
-  - [`circuits`](./crates/circuits/) - Boolean circuit DSL.
-  - [`ot`](./crates/ot) ([`core`](./crates/ot-core/)) - Oblivious transfer protocols.
-  - [`garble`](./crates/garble/) ([`core`](./crates/garble-core/)) - Boolean garbled circuit protocols.
-  - [`share-conversion`](./crates/share-conversion/) ([`core`](./crates/share-conversion-core/)) - Multiplicative-to-Additive and Additive-to-Multiplicative share conversion protocols for a variety of fields.
-  - [`cointoss`](./crates/cointoss/) ([`core`](./crates/cointoss-core/)) - 2-party cointoss protocol.
-  - [`matrix-transpose`](./crates/matrix-transpose/) - Bit-wise matrix transposition.
-  - [`clmul`](./crates/clmul/) - Carry-less multiplication.
+These crates implement complete, high-level protocols. Each top-level crate is
+paired with an IO-free `*-core` crate containing the protocol logic; supporting
+crates (primitives, circuits, execution, VM, and tooling) are intentionally not
+listed here.
 
-## Running tests/benches on WASM
+- [`ot`](./crates/ot/) ([`ot-core`](./crates/ot-core/)) - Oblivious transfer.
+- [`garble`](./crates/garble/) ([`garble-core`](./crates/garble-core/)) - Garbled circuits.
+- [`ole`](./crates/ole/) ([`ole-core`](./crates/ole-core/)) - Oblivious linear evaluation.
+- [`zk`](./crates/zk/) ([`zk-core`](./crates/zk-core/)) - Zero-knowledge proofs.
+- [`share-conversion`](./crates/share-conversion/) ([`share-conversion-core`](./crates/share-conversion-core/)) - Multiplicative-to-additive and additive-to-multiplicative share conversion.
+- [`cointoss`](./crates/cointoss/) ([`cointoss-core`](./crates/cointoss-core/)) - Two-party coin toss.
 
-Tests and benchmarks can be run against WASM targets using [`wasm-harness`](https://github.com/sinui0/wasm-harness), which is configured as the cargo runner for the `wasm32-wasip1` and `wasm32-wasip1-threads` targets in [`.cargo/config.toml`](./.cargo/config.toml).
+## Testing on WASM
 
-Install the harness and a supported WASM target:
-
-```bash
-cargo install wasm-harness
-rustup target add wasm32-wasip1-threads
-```
-
-`wasm-harness` requires a WASM execution engine ([wasmtime](https://wasmtime.dev/), or V8/SpiderMonkey via [jsvu](https://github.com/GoogleChromeLabs/jsvu)). It auto-discovers an available engine, or one can be selected explicitly with `--engine` or the `WASM_HARNESS_ENGINE` environment variable.
-
-Then run tests/benches as usual, passing the WASM target:
-
-```bash
-# Run tests (use the threaded target for crates relying on rayon)
-cargo test -p <crate> --target wasm32-wasip1-threads
-
-# Run benches
-cargo bench -p <crate> --target wasm32-wasip1-threads
-```
+Tests and benchmarks can run on `wasm32-wasip1` and `wasm32-wasip1-threads` through [`wasm-harness`](https://github.com/tlsnotary/wasm-harness). See [WASM.md](./WASM.md) for setup, engines, commands, and limitations.
 
 ## License
 All crates in this repository are licensed under either of
